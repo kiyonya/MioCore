@@ -16,7 +16,7 @@ import NeoNeoForgeGather from "./modules/gather/gather_neoforge.ts";
 import NeoForgeServerInstaller from "./modules/installer/server/neoforge_server_installer.ts";
 import JavaRuntimeInstaller from "./modules/installer/jrt_installer.ts";
 
-
+import {type MinecraftVersionJson,type MinecraftLib,type DownloadTaskItem} from './types/index.ts'
 
 interface MinecraftServerInstallerOptions {
     java?: string,
@@ -26,67 +26,7 @@ interface MinecraftServerInstallerOptions {
     modLoader?:
     | { [K in "forge" | "fabric" | "neoforge" | "quilt" | "fabricapi"]?: string }
 }
-interface MinecraftLib {
-    name: string;
-    downloads?: {
-        artifact?: {
-            path: string;
-            sha1?: string;
-            size?: number;
-            url: string;
-        };
-        classifiers?: {
-            [key: string]: {
-                path: string;
-                sha1?: string;
-                size?: number;
-                url: string;
-            };
-        };
-    };
-    rules?: {
-        os: {
-            name: "osx" | "linux" | "windows";
-        };
-        action?: string;
-    }[];
-}
-interface MinecraftVersionJson {
-    id?: string
-    modLoader?: { [key: string]: string } | null
-    libraries: MinecraftLib[];
-    downloads: {
-        client: {
-            sha1: string;
-            size: number;
-            url: string;
-        };
-        server: {
-            sha1: string;
-            size: number;
-            url: string;
-        };
-        client_mappings: any,
-        server_mappings: any,
-    };
-    assetIndex: {
-        id: string;
-        sha1: string;
-        size: number;
-        totalSize: number;
-        url: string;
-    };
-    javaVersion: {
-        majorVersion: number,
-        component: "java-runtime-alpha" | "java-runtime-beta" | "java-runtime-delta" | "java-runtime-gamma" | "java-runtime-gamma-snapshot" | "jre-legacy" | "minecraft-java-exe"
-    }
-}
-interface DownloadTaskItem {
-    url: string;
-    sha1?: string;
-    path: string;
-    type?: string;
-}
+
 
 
 export default class MinecraftServerInstaller extends EventEmitter {

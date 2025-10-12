@@ -1,56 +1,24 @@
 import EventEmitter from "events"
 import path from "path"
-import { type MinecraftVersionJson } from "./types/index.ts"
-import fs, { existsSync } from 'fs'
+import os from 'os'
+import fs from 'fs'
+import { type MinecraftVersionJson,type LaunchOptions } from "./types/index.ts"
 import { mavenToPath } from "../src/utils/io.ts"
 import AdmZip from "adm-zip"
 import { existify } from "./utils/io.ts"
 import { checkOSRules } from "./utils/os.ts"
 import { checkFiles } from "./modules/check/file_checker.ts"
-import os from 'os'
 import { spawn } from "child_process"
 import JavaRuntimeInstaller from "./modules/installer/jrt_installer.ts"
 import ConcDownloader from "./downloader/downloader.ts"
 import DownloadTask from "./downloader/downloadtask.ts"
 import Mirror from "./modules/mirror/mirror.ts"
-import GeneralOptionsIO from "./modules/game/general_options.ts"
+import OptionsIO from "./modules/game/optionsIO.ts"
 
 interface LauncherCreateOptions {
     minecraftPath: string,
     name: string,
     versionIsolation: boolean
-}
-
-interface LaunchOptions {
-    java?: string
-    jvmArgumentsHead?: string[]
-    gameArguments?: []
-    jvmVersionCheck?: boolean
-    gameFileCheck?: boolean
-    mojangServerConnectionCheck?: boolean
-    lwjglNativesDirectory?: string
-    //游戏
-    windowWidth?: number
-    windowHeight?: number
-    demo?: boolean
-    title?: string
-    useLaunchLanguage?: string
-    useGamaOverride?: boolean
-    processPriority?: number
-    entryServer?: string
-    //启动
-    createLaunchBat?: boolean
-    //内存
-    //自动内存分配
-    autoMemDistribution?: boolean
-    //内存分配数量 number 当 autoMemDistribution 为false时读取内存分配
-    memDistribution?: number
-    //最小内存分配 一般无需指定默认为256
-    memLow?: number | 256
-    //指令钩子
-    beforeLaunch?: string
-    afterLaunch?: string
-    afterClose?: string
 }
 
 export default class ClientLauncher extends EventEmitter {
@@ -183,7 +151,7 @@ export default class ClientLauncher extends EventEmitter {
             this.speed.complete = 0
         }
 
-        const gameOptionsIO = new GeneralOptionsIO(path.join(this.versionPath,'options.txt'))
+        const gameOptionsIO = new OptionsIO(path.join(this.versionPath,'options.txt'))
         gameOptionsIO.createEmptyWhenNoFile()
         if(this.launchOptions.useLaunchLanguage){
             gameOptionsIO.set('lang',this.launchOptions.useLaunchLanguage)
@@ -213,6 +181,8 @@ export default class ClientLauncher extends EventEmitter {
         process.stdout.on('data', (chunk: Buffer) => {
             console.log(chunk.toString())
         })
+
+        console.warn(process.pid)
 
     }
 
@@ -300,7 +270,7 @@ export default class ClientLauncher extends EventEmitter {
         argumentMap.set('client_id', authOptions.uuid)
         argumentMap.set('clientid', authOptions.uuid)
         argumentMap.set('user_type', 'msa')
-        argumentMap.set('version_type', 'Mia-Minecraft-Launcher')
+        argumentMap.set('version_type', 'MioMinecraftLauncher')
         argumentMap.set('user_properties', '{}')
         argumentMap.set('memory_heap', this.launchOptions.memDistribution || 4096)
         argumentMap.set('memory_low', this.launchOptions.memLow || 256)

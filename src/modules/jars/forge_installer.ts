@@ -3,6 +3,7 @@ import { existify } from "../../utils/io.ts";
 import admZip from "adm-zip";
 import EventEmitter from "events";
 import DownloadTask from "../../downloader/downloadtask.ts";
+
 interface ForgeInstallerGetterOptions {
   versionPath: string;
   version: string;

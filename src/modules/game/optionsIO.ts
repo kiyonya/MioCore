@@ -1,5 +1,5 @@
 import fs from 'fs'
-export default class GeneralOptionsIO {
+export default class OptionsIO {
     public optionFile: string
     public options: { [K: string]: string }
     constructor(optionFile: string) {

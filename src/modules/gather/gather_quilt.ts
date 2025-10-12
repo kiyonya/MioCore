@@ -3,6 +3,7 @@
 import path from "path"
 import { mavenToPath } from "../../utils/io.ts"
 import axios from "axios"
+import { type DownloadTaskItem } from "../../types/index.ts";
 
 interface GatherQuiltOptions {
     libPath:string,
@@ -20,12 +21,6 @@ interface QuiltVersionJson {
     }[]
 }
 
-interface DownloadTaskItem {
-    url: string;
-    sha1?: string;
-    path: string;
-    type?: string;
-}
 
 export default class QuiltGather {
 

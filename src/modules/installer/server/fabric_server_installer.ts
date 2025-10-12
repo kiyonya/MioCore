@@ -8,7 +8,7 @@ interface FabricServerInstallerOptions {
     serverPath: string
     version: string
     fabricVersion: string
-    serverJarPath:string
+    serverJarPath: string
 }
 
 export default class FabricServerInstaller {
@@ -17,7 +17,7 @@ export default class FabricServerInstaller {
     public serverPath: string
     public version: string
     public fabricVersion: string
-    public serverJarPath:string
+    public serverJarPath: string
 
     constructor(options: FabricServerInstallerOptions) {
         this.serverPath = options.serverPath
@@ -41,26 +41,26 @@ export default class FabricServerInstaller {
         const manifestObject = {
             'Manifest-Version': '1.0',
             'Main-Class': 'net.fabricmc.loader.impl.launch.server.FabricServerLauncher',
-            'Class-Path':classPaths
+            'Class-Path': classPaths
         }
 
         const manifest = objectToManifest(manifestObject)
         const launchProperties = `launch.mainClass=${fabricServerJson.mainClass}`
 
         const jar = new AdmZip()
-        jar.addFile('fabric-server-launch.properties',Buffer.from(launchProperties))
-        jar.addFile('META-INF/MANIFEST.MF',Buffer.from(manifest))
+        jar.addFile('fabric-server-launch.properties', Buffer.from(launchProperties))
+        jar.addFile('META-INF/MANIFEST.MF', Buffer.from(manifest))
 
         const jarBuffer = jar.toBuffer()
-        fs.writeFileSync(path.join(this.serverPath,'setup.jar'),jarBuffer)
+        fs.writeFileSync(path.join(this.serverPath, 'setup.jar'), jarBuffer)
 
         const fabricLauncherProperties = `#${new Date().toUTCString()}\n#Have Fun:>\nserverJar=${path.basename(this.serverJarPath)}`
 
-        fs.writeFileSync(path.join(this.serverPath,'fabric-server-launcher.properties'),fabricLauncherProperties,'utf8')
+        fs.writeFileSync(path.join(this.serverPath, 'fabric-server-launcher.properties'), fabricLauncherProperties, 'utf8')
 
         //生成启动bat
         const bat = 'java -jar setup.jar\npause'
-        fs.writeFileSync(path.join(this.serverPath,'setup.bat'),bat,'utf-8')
+        fs.writeFileSync(path.join(this.serverPath, 'setup.bat'), bat, 'utf-8')
     }
 
     protected async getFabricServerJson() {

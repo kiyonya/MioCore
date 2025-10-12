@@ -2,6 +2,7 @@ import axios from "axios";
 import EventEmitter from "events";
 import { mavenToPath } from "../../utils/io.ts";
 import path from "path";
+import { type DownloadTaskItem } from "../../types/index.ts";
 
 interface FabricGatherOptions {
     libPath: string,
@@ -44,14 +45,6 @@ interface FabricIndexJson {
         }
     }
 }
-
-interface DownloadTaskItem {
-    url: string;
-    sha1?: string;
-    path: string;
-    type?: string;
-}
-
 
 export default class FabricGather extends EventEmitter {
 

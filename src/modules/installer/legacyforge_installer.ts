@@ -8,14 +8,6 @@ interface LegacyForgeInstallOptions {
     side: 'client' | 'server'
 }
 
-interface LegacyForgeLib {
-    name: string
-    url?: string
-    checksums?: string[]
-    serverreq?: boolean
-    clientreq?: boolean
-}
-
 export default class LegacyForgeInstaller extends EventEmitter {
 
     public libPath: string

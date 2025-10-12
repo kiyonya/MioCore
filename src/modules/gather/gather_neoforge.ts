@@ -3,12 +3,7 @@ import path from "path";
 import { existify, isMavenLikePath, mavenToPath } from "../../utils/io.ts";
 import { checkOSRules } from "../../utils/os.ts";
 
-interface DownloadTaskItem {
-    url: string;
-    sha1?: string;
-    path: string;
-    type?: string;
-}
+import { type DownloadTaskItem } from "../../types/index.ts";
 
 interface NeoForgeGatherOptions {
     neoforgeWorkDir: string;

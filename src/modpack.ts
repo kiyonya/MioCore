@@ -3,15 +3,12 @@ import AdmZip from "adm-zip";
 import { existify } from "./utils/io.ts";
 import MinecraftClientInstaller from "./client.ts";
 import axios from "axios";
-import pLimit from "p-limit";
 import ConcDownloader from "./downloader/downloader.ts";
 import DownloadTask from "./downloader/downloadtask.ts";
 import path from "path";
 import EventEmitter from "events";
-import os from 'os'
 import crypto from 'crypto'
-import fs from 'fs'
-import Request from "./utils/request.ts";
+import { type CurseForgeManifestJson, type ModrinthIndexJson } from './types/index.ts'
 
 interface ModPackInstallerOptions {
     name: string,
@@ -19,45 +16,6 @@ interface ModPackInstallerOptions {
     versionIsolation: boolean,
     java?: string,
 }
-
-type CurseForgeModpackModLoadersItem = {
-    id: string,
-    primary: boolean
-}
-
-type CurseForgeManifestJson = {
-    name: string,
-    files: {
-        "projectID": number,
-        "fileID": number,
-        "required": boolean
-    }[],
-    minecraft: {
-        version: string,
-        modLoaders?: CurseForgeModpackModLoadersItem[]
-    }
-}
-
-type ModrinthIndexJson = {
-    name: string,
-    files: {
-        path: string,
-        hashes: {
-            sha1: string,
-            sha512: string,
-        },
-        downloads: string[],
-        filesize: number
-    }[],
-    dependencies: {
-        minecraft: string,
-        forge?: string,
-        fabric?: string,
-        neoforge?: string,
-    }
-}
-
-
 
 export default class ModpackInstaller extends EventEmitter {
 

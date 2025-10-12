@@ -111,8 +111,8 @@ export default class JavaRuntimeInstaller extends ConcDownloader {
         }
         await this.download()
 
-        return path.join(this.javaInstallPath,'bin','java.exe')
-        
+        return path.join(this.javaInstallPath, 'bin', 'java.exe')
+
         console.log('DONE')
     }
 
