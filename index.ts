@@ -2,11 +2,10 @@ import path from "path";
 import Server from "./src/server.ts";
 import Modpack from "./src/modpack.ts";
 import Client from "./src/client.ts";
-import * as request from "./src/utils/request.ts";
 import JavaRuntimeInstaller from "./src/modules/installer/jrt_installer.ts";
-import Mirror from "./src/modules/mirror/mirror.ts";
 import ClientLauncher from "./src/launch.ts";
 import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
+
 
 class MioCore {
     static ClientInstaller = Client
@@ -83,19 +82,7 @@ async function jvmi() {
 
 // console.log(Mirror.getMirrors("https://libraries.minecraft.net/com/mojang/logging/1.0.0/logging-1.0.0.jar",false))
 
-async function launch() {
-    const launcher = new ClientLauncher({
-        minecraftPath: path.resolve('.minecraft'),
-        versionIsolation: true,
-        name: '1.9.4-legacy'
-    }, {useLaunchLanguage:'zh_CN',useGamaOverride:true})
 
-    await launcher.launch({
-        username: 'Homo',
-        accessToken: '0d00',
-        uuid: crypto.randomUUID().replaceAll('-', '')
-    })
-}
 
 function docrash() {
     const csa = new CrashAnalyzer("D:/Program/Minecraft/.minecraft/versions/养老/crash-reports/crash-2025-06-10_22.29.34-client.txt")
@@ -120,6 +107,24 @@ async function installClient() {
     })
 
     await clientInstaller.install()
+}
+
+async function launch() {
+    const launcher = new ClientLauncher({
+        minecraftPath: path.resolve('D:/Program/Minecraft/.minecraft'),
+        versionIsolation: true,
+        name: '海岛寿司店v1.1'
+    }, { 
+        useLaunchLanguage: 'zh_cn', 
+        useGamaOverride: true,
+        title:'自定义游戏名称'
+    })
+
+    await launcher.launch({
+        username: 'Homo',
+        accessToken: '0d00',
+        uuid: crypto.randomUUID().replaceAll('-', '')
+    })
 }
 
 launch()

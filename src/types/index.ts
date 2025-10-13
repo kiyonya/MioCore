@@ -124,20 +124,20 @@ export type CurseForgeManifestJson = {
 }
 
 export type ModrinthIndexJson = {
-    name: string,
-    files: {
-        path: string,
-        hashes: {
-            sha1: string,
-            sha512: string,
-        },
-        downloads: string[],
-        filesize: number
-    }[],
-    dependencies: {
-        minecraft: string,
-        forge?: string,
-        fabric?: string,
-        neoforge?: string,
-    }
+  name: string,
+  files: {
+    path: string,
+    hashes: {
+      sha1: string,
+      sha512: string,
+    },
+    downloads: string[],
+    filesize: number
+  }[],
+  dependencies: {
+    minecraft: string,
+    forge?: string,
+    fabric?: string,
+    neoforge?: string,
+  }
 }

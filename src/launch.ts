@@ -2,7 +2,8 @@ import EventEmitter from "events"
 import path from "path"
 import os from 'os'
 import fs from 'fs'
-import { type MinecraftVersionJson,type LaunchOptions } from "./types/index.ts"
+import crypto from 'crypto'
+import { type MinecraftVersionJson, type LaunchOptions, type MinecraftLib } from "./types/index.ts"
 import { mavenToPath } from "../src/utils/io.ts"
 import AdmZip from "adm-zip"
 import { existify } from "./utils/io.ts"
@@ -14,6 +15,8 @@ import ConcDownloader from "./downloader/downloader.ts"
 import DownloadTask from "./downloader/downloadtask.ts"
 import Mirror from "./modules/mirror/mirror.ts"
 import OptionsIO from "./modules/game/optionsIO.ts"
+import WinCppAddon from "./addon/wincpp/index.ts"
+import { compareVersions } from "./utils/v.ts"
 
 interface LauncherCreateOptions {
     minecraftPath: string,
@@ -151,20 +154,25 @@ export default class ClientLauncher extends EventEmitter {
             this.speed.complete = 0
         }
 
-        const gameOptionsIO = new OptionsIO(path.join(this.versionPath,'options.txt'))
+        const gameOptionsIO = new OptionsIO(path.join(this.versionPath, 'options.txt'))
         gameOptionsIO.createEmptyWhenNoFile()
-        if(this.launchOptions.useLaunchLanguage){
-            gameOptionsIO.set('lang',this.launchOptions.useLaunchLanguage)
+        if (this.launchOptions.useLaunchLanguage) {
+            gameOptionsIO.set('lang', this.launchOptions.useLaunchLanguage)
         }
-        if(this.launchOptions.useGamaOverride){
-            gameOptionsIO.set('gamma','10.0')
+        if (this.launchOptions.useGamaOverride) {
+            gameOptionsIO.set('gamma', '10.0')
         }
-        else{
-            gameOptionsIO.set('gamma','0.0')
+        else {
+            gameOptionsIO.set('gamma', '0.0')
         }
         gameOptionsIO.save()
 
         const { mainClass, jvmArgs, gameArgs } = this.createLaunchCommand(versionJson, authOptions)
+
+        console.log(mainClass)
+
+        const cmd = `"${this.java}" ${jvmArgs.join(' ')} ${mainClass} ${gameArgs.join(' ')}\n\npause`
+        fs.writeFileSync(path.join(this.versionPath, 'latestlaunch.bat'), cmd, 'utf-8')
 
         const process = spawn(this.java as string, [
             ...jvmArgs,
@@ -174,28 +182,119 @@ export default class ClientLauncher extends EventEmitter {
             cwd: this.versionPath,
         })
 
-        const cmd = `"${this.java}" ${jvmArgs.join(' ')} ${mainClass} ${gameArgs.join(' ')}\n\npause`
-
-        fs.writeFileSync(path.join(this.versionPath, 'latestlaunch.bat'), cmd, 'utf-8')
-
-        process.stdout.on('data', (chunk: Buffer) => {
-            console.log(chunk.toString())
+        process.stderr.on('data',(data)=>{
+            console.log(data.toString())
         })
 
-        console.warn(process.pid)
+        const startTime = Date.now()
 
+        if (!process.pid) {
+            console.log("启动失败")
+            throw new Error('NoIns')
+        }
+
+        //等待窗口出现
+        console.log('wait window')
+
+        process.stdout.on('data', (chunk: Buffer) => {
+            // console.log(chunk.toString())
+        })
+
+        const isWindowCreate = new Promise<boolean>((resolve, reject) => {
+            if (!process.pid) {
+                resolve(false)
+            }
+            else {
+                let maxWaitTimeout: NodeJS.Timeout = setTimeout(() => {
+                    resolve(false)
+                    clearTimeout(maxWaitTimeout)
+
+                }, 3 * 60 * 1000);
+
+                let queryInterval: NodeJS.Timeout = setInterval(() => {
+
+                    const hasWindow: boolean = WinCppAddon.isPidHasWindow(process.pid as number)
+                    console.log(hasWindow)
+
+                    if (hasWindow) {
+                        resolve(true)
+                        clearInterval(queryInterval)
+                        clearTimeout(maxWaitTimeout)
+                    }
+                }, 100);
+            }
+        })
+
+        await isWindowCreate
+
+        const launchedTime = Date.now()
+        console.log(`启动用时\n============\n${launchedTime - startTime}ms\n============`)
+
+        if(this.launchOptions.title){
+            WinCppAddon.modifyWinTitle(process.pid, this.launchOptions.title)
+        }
+
+        console.warn(process.pid)
     }
 
     protected createLaunchCommand(versionJson: MinecraftVersionJson, authOptions: { username: string, accessToken: string, uuid: string }) {
-        const requiredLibs = versionJson.libraries?.filter(i => i.name && checkOSRules(i.rules)).filter(lib => {
+        let requiredLibs = versionJson.libraries?.filter(i => i.name && checkOSRules(i.rules)).filter(lib => {
             //处理旧版forge的clientreq
             if (!lib.clientreq || lib.clientreq === true) { return true }
             return false
         })
 
-        let classPath: string[] = []
+        console.warn(requiredLibs)
+
+        const depRequiredLibs:MinecraftLib[] = []
+
+        //根据name去重
+        const libMaps: Map<string, { version: string, lib: MinecraftLib }> = new Map()
 
         for (const lib of requiredLibs) {
+            const name = lib.name
+            const version = name.split(':').pop() as string
+            const libName = lib.name.split(":")[1] as string
+
+            if(name.includes('lwjgl')){
+                depRequiredLibs.push(lib)
+                continue
+            }
+
+            if (libMaps.has(libName)) {
+                //比较版本
+                const settledLibData = libMaps.get(libName)
+                const settledVersion = settledLibData?.version
+                if (settledVersion) {
+                    const latestVersion = compareVersions(version, settledVersion)
+                    if (latestVersion === settledVersion) {
+                        continue
+                    }
+                    else {
+                        //更新
+                        libMaps.set(libName, {
+                            version: version,
+                            lib: lib
+                        })
+                    }
+                }
+                else {
+                    continue
+                }
+            }
+            else {
+                libMaps.set(libName, {
+                    version: version,
+                    lib: lib
+                })
+            }
+        }
+
+        depRequiredLibs.push(...Array.from(libMaps.values()).map(i=>i.lib))
+
+        let classPath: string[] = []
+
+        for (const lib of depRequiredLibs) {
             if (lib.downloads?.classifiers) {
                 for (const [os, natives] of Object.entries(lib.downloads.classifiers)) {
                     const nativeJarPath = path.join(this.libPath, natives.path)
@@ -222,7 +321,8 @@ export default class ClientLauncher extends EventEmitter {
         }
 
         classPath = [...new Set(classPath)]
-        console.log(classPath)
+
+        console.warn(classPath)
 
         let gameLaunchArguments: { jvm?: any[]; game?: (string | number)[] } = {}
         gameLaunchArguments.jvm = [
@@ -243,9 +343,6 @@ export default class ClientLauncher extends EventEmitter {
         }
         if (this.launchOptions.demo) {
             gameLaunchArguments?.game?.push('--demo')
-        }
-        if (this.launchOptions.title) {
-            gameLaunchArguments?.game?.push('--title', this.launchOptions.title)
         }
         if (this.launchOptions.entryServer) {
             gameLaunchArguments.game?.push('--server', this.launchOptions.entryServer)
@@ -274,6 +371,7 @@ export default class ClientLauncher extends EventEmitter {
         argumentMap.set('user_properties', '{}')
         argumentMap.set('memory_heap', this.launchOptions.memDistribution || 4096)
         argumentMap.set('memory_low', this.launchOptions.memLow || 256)
+        argumentMap.set('auth_xuid',authOptions.uuid)
         if (!gameLaunchArguments?.jvm?.includes('-cp')) {
             gameLaunchArguments?.jvm?.push('-cp')
             gameLaunchArguments?.jvm?.push('${classpath}')
