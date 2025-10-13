@@ -9,7 +9,7 @@ import AdmZip from "adm-zip"
 import { existify } from "./utils/io.ts"
 import { checkOSRules } from "./utils/os.ts"
 import { checkFiles } from "./modules/check/file_checker.ts"
-import { spawn } from "child_process"
+import { type ChildProcessWithoutNullStreams, spawn } from "child_process"
 import JavaRuntimeInstaller from "./modules/installer/jrt_installer.ts"
 import ConcDownloader from "./downloader/downloader.ts"
 import DownloadTask from "./downloader/downloadtask.ts"
@@ -79,6 +79,8 @@ export default class ClientLauncher extends EventEmitter {
 
     public speed: { [K: string]: number }
 
+    public gameProcess: ChildProcessWithoutNullStreams | null
+
     constructor(createOptions: LauncherCreateOptions, launchOptions: LaunchOptions) {
         super()
         this.launchOptions = launchOptions
@@ -99,9 +101,10 @@ export default class ClientLauncher extends EventEmitter {
         this.isWindows = os.platform() === 'win32'
 
         this.java = launchOptions.java
+        this.gameProcess = null
     }
 
-    public async launch(authOptions: { username: string, accessToken: string, uuid: string }) {
+    public async launch(authOptions: { username: string, accessToken: string, uuid: string }):Promise<number> {
         const versionJsonPath = path.join(this.versionPath, `${this.name}.json`)
         if (!fs.existsSync(versionJsonPath)) {
             throw new Error('缺失版本json文件')
@@ -112,14 +115,14 @@ export default class ClientLauncher extends EventEmitter {
 
         if (!this.java) {
             //检查目录
-            const requiredJavaVersion = versionJson.javaVersion.majorVersion
+            const requiredJavaVersion = versionJson.javaVersion?.majorVersion || 8
             const javaEXEInMinecraftDir = path.join(this.minecraftPath, 'java', String(requiredJavaVersion), 'bin', 'java.exe')
             if (fs.existsSync(javaEXEInMinecraftDir)) {
                 this.java = javaEXEInMinecraftDir
             }
             else {
                 //下载了只能
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(versionJson.javaVersion.component, path.join(this.minecraftPath, 'java', String(requiredJavaVersion)))
+                const javaRuntimeInstaller = new JavaRuntimeInstaller(versionJson.javaVersion?.component || 'jre-legacy', path.join(this.minecraftPath, 'java', String(requiredJavaVersion)))
 
                 this.progress.installJava = 0
 
@@ -174,7 +177,7 @@ export default class ClientLauncher extends EventEmitter {
         const cmd = `"${this.java}" ${jvmArgs.join(' ')} ${mainClass} ${gameArgs.join(' ')}\n\npause`
         fs.writeFileSync(path.join(this.versionPath, 'latestlaunch.bat'), cmd, 'utf-8')
 
-        const process = spawn(this.java as string, [
+        this.gameProcess = spawn(this.java as string, [
             ...jvmArgs,
             mainClass,
             ...gameArgs
@@ -182,59 +185,50 @@ export default class ClientLauncher extends EventEmitter {
             cwd: this.versionPath,
         })
 
-        process.stderr.on('data',(data)=>{
-            console.log(data.toString())
+        this.gameProcess.on('error', (error) => {
+            this.onGameLaunchFailed(error)
+            throw error
         })
 
-        const startTime = Date.now()
-
-        if (!process.pid) {
-            console.log("启动失败")
-            throw new Error('NoIns')
+        if (!this.gameProcess.pid) {
+            this.onGameLaunchFailed(new Error('游戏进程启动失败'))
+            throw new Error('游戏进程启动失败')
         }
-
-        //等待窗口出现
-        console.log('wait window')
-
-        process.stdout.on('data', (chunk: Buffer) => {
-            // console.log(chunk.toString())
-        })
-
-        const isWindowCreate = new Promise<boolean>((resolve, reject) => {
-            if (!process.pid) {
-                resolve(false)
-            }
-            else {
-                let maxWaitTimeout: NodeJS.Timeout = setTimeout(() => {
+        else {
+            this.addProcessListener()
+            
+            const isWindowCreate = new Promise<boolean>((resolve, reject) => {
+                if (!this.gameProcess?.pid) {
                     resolve(false)
-                    clearTimeout(maxWaitTimeout)
-
-                }, 3 * 60 * 1000);
-
-                let queryInterval: NodeJS.Timeout = setInterval(() => {
-
-                    const hasWindow: boolean = WinCppAddon.isPidHasWindow(process.pid as number)
-                    console.log(hasWindow)
-
-                    if (hasWindow) {
-                        resolve(true)
-                        clearInterval(queryInterval)
+                }
+                else {
+                    let maxWaitTimeout: NodeJS.Timeout = setTimeout(() => {
+                        resolve(false)
                         clearTimeout(maxWaitTimeout)
-                    }
-                }, 100);
+
+                    }, 3 * 60 * 1000);
+
+                    let queryInterval: NodeJS.Timeout = setInterval(() => {
+
+                        const hasWindow: boolean = WinCppAddon.isPidHasWindow(this.gameProcess?.pid as number)
+                        console.log(hasWindow)
+
+                        if (hasWindow) {
+                            resolve(true)
+                            clearInterval(queryInterval)
+                            clearTimeout(maxWaitTimeout)
+                        }
+                    }, 100);
+                }
+            })
+            await isWindowCreate
+
+            if (this.launchOptions.title) {
+                WinCppAddon.modifyWinTitle(this.gameProcess.pid, this.launchOptions.title)
             }
-        })
-
-        await isWindowCreate
-
-        const launchedTime = Date.now()
-        console.log(`启动用时\n============\n${launchedTime - startTime}ms\n============`)
-
-        if(this.launchOptions.title){
-            WinCppAddon.modifyWinTitle(process.pid, this.launchOptions.title)
         }
 
-        console.warn(process.pid)
+        return this.gameProcess.pid
     }
 
     protected createLaunchCommand(versionJson: MinecraftVersionJson, authOptions: { username: string, accessToken: string, uuid: string }) {
@@ -246,7 +240,7 @@ export default class ClientLauncher extends EventEmitter {
 
         console.warn(requiredLibs)
 
-        const depRequiredLibs:MinecraftLib[] = []
+        const depRequiredLibs: MinecraftLib[] = []
 
         //根据name去重
         const libMaps: Map<string, { version: string, lib: MinecraftLib }> = new Map()
@@ -256,7 +250,7 @@ export default class ClientLauncher extends EventEmitter {
             const version = name.split(':').pop() as string
             const libName = lib.name.split(":")[1] as string
 
-            if(name.includes('lwjgl')){
+            if (name.includes('lwjgl')) {
                 depRequiredLibs.push(lib)
                 continue
             }
@@ -290,7 +284,7 @@ export default class ClientLauncher extends EventEmitter {
             }
         }
 
-        depRequiredLibs.push(...Array.from(libMaps.values()).map(i=>i.lib))
+        depRequiredLibs.push(...Array.from(libMaps.values()).map(i => i.lib))
 
         let classPath: string[] = []
 
@@ -371,7 +365,7 @@ export default class ClientLauncher extends EventEmitter {
         argumentMap.set('user_properties', '{}')
         argumentMap.set('memory_heap', this.launchOptions.memDistribution || 4096)
         argumentMap.set('memory_low', this.launchOptions.memLow || 256)
-        argumentMap.set('auth_xuid',authOptions.uuid)
+        argumentMap.set('auth_xuid', authOptions.uuid)
         if (!gameLaunchArguments?.jvm?.includes('-cp')) {
             gameLaunchArguments?.jvm?.push('-cp')
             gameLaunchArguments?.jvm?.push('${classpath}')
@@ -439,5 +433,50 @@ export default class ClientLauncher extends EventEmitter {
         })
     }
 
+    public addProcessListener() {
+        if (this.gameProcess && this.gameProcess.pid && !this.gameProcess.killed) {
+            this.gameProcess.stdout.addListener('data', (data: Buffer) => {
+                this.emit('stdout', data.toString())
+            })
+            this.gameProcess.stderr.addListener('error', (stderr: Buffer) => {
+                this.emit('stderr', stderr.toString())
+            })
+            this.gameProcess.addListener('exit', (code, signal) => {
+                this.emit('exit', code, signal)
+                if (code !== 0) {
+                    this.emit('crash', code, signal)
+                }
+            })
+            this.gameProcess.addListener('close', (code, signal) => {
+                this.emit('close', code, signal)
+                if (code !== 0) {
+                    this.emit('crash', code, signal)
+                }
+            })
+        }
+    }
 
+    public removeProcessListener() {
+        if (this.gameProcess && this.gameProcess.pid && !this.gameProcess.killed) {
+            this.gameProcess.stdout.removeAllListeners()
+            this.gameProcess.stderr.removeAllListeners()
+            this.gameProcess.removeAllListeners()
+        }
+    }
+
+    public killProcess(): null | number {
+        if (this.gameProcess && !this.gameProcess.killed) {
+            this.gameProcess.kill("SIGTERM")
+            const exitCode = this.gameProcess.exitCode
+            this.gameProcess = null
+            return exitCode
+        }
+        return null
+    }
+
+    protected onGameLaunchFailed(error: Error) {
+        this.emit('failed', error)
+        this.removeProcessListener()
+        this.gameProcess = null
+    }
 }

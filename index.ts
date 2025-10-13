@@ -113,12 +113,18 @@ async function launch() {
     const launcher = new ClientLauncher({
         minecraftPath: path.resolve('D:/Program/Minecraft/.minecraft'),
         versionIsolation: true,
-        name: '海岛寿司店v1.1'
-    }, { 
-        useLaunchLanguage: 'zh_cn', 
+        name: 'b1.9-pre6'
+    }, {
+        useLaunchLanguage: 'zh_cn',
         useGamaOverride: true,
-        title:'自定义游戏名称'
+        title: '自定义游戏名称'
     })
+
+    launcher.on('stdout', (str) => console.log(str))
+    launcher.on('stderr', (err) => { console.log("游戏报错" + err) })
+    launcher.on('crash', (code, signal) => { console.log('游戏崩溃了');launcher.removeAllListeners() })
+    launcher.on('failed', (err) => { console.log("无法启动" + err);launcher.removeAllListeners() })
+    launcher.on('close', (code, signal) => { console.log("游戏正常退出"); launcher.removeAllListeners() })
 
     await launcher.launch({
         username: 'Homo',
