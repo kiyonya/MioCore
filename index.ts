@@ -5,6 +5,8 @@ import Client from "./src/client.ts";
 import JavaRuntimeInstaller from "./src/modules/installer/jrt_installer.ts";
 import ClientLauncher from "./src/launch.ts";
 import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
+import JSONIO from "./src/utils/jsonIO.ts";
+import ResourcesPool from "./src/modules/game/resources_storage.ts";
 
 
 class MioCore {
@@ -110,10 +112,12 @@ async function installClient() {
 }
 
 async function launch() {
+
+    
     const launcher = new ClientLauncher({
-        minecraftPath: path.resolve('D:/Program/Minecraft/.minecraft'),
+        minecraftPath: path.resolve('.minecraft'),
         versionIsolation: true,
-        name: 'b1.9-pre6'
+        name: 'MinimalCreate'
     }, {
         useLaunchLanguage: 'zh_cn',
         useGamaOverride: true,

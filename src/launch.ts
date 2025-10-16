@@ -17,6 +17,8 @@ import Mirror from "./modules/mirror/mirror.ts"
 import OptionsIO from "./modules/game/optionsIO.ts"
 import WinCppAddon from "./addon/wincpp/index.ts"
 import { compareVersions } from "./utils/v.ts"
+import JSONIO from "./utils/jsonIO.ts"
+import ResourcesStore from "./modules/game/resources_storage.ts"
 
 interface LauncherCreateOptions {
     minecraftPath: string,
@@ -81,6 +83,8 @@ export default class ClientLauncher extends EventEmitter {
 
     public gameProcess: ChildProcessWithoutNullStreams | null
 
+    public resourcesStore:ResourcesStore | null
+
     constructor(createOptions: LauncherCreateOptions, launchOptions: LaunchOptions) {
         super()
         this.launchOptions = launchOptions
@@ -102,9 +106,11 @@ export default class ClientLauncher extends EventEmitter {
 
         this.java = launchOptions.java
         this.gameProcess = null
+
+        this.resourcesStore = null
     }
 
-    public async launch(authOptions: { username: string, accessToken: string, uuid: string }):Promise<number> {
+    public async launch(authOptions: { username: string, accessToken: string, uuid: string }): Promise<number> {
         const versionJsonPath = path.join(this.versionPath, `${this.name}.json`)
         if (!fs.existsSync(versionJsonPath)) {
             throw new Error('缺失版本json文件')
@@ -112,6 +118,25 @@ export default class ClientLauncher extends EventEmitter {
         const versionJson: MinecraftVersionJson = JSON.parse(fs.readFileSync(versionJsonPath, 'utf-8'))
 
         const loses = await checkFiles({ versionJsonPath: versionJsonPath, libPath: this.libPath, assetsPath: this.assetsPath, minecraftJar: this.minecraftJarPath })
+    
+        //资源池
+        const mmlDataJsonPath = path.join(this.versionPath,'MML','data.json')
+        if(fs.existsSync(mmlDataJsonPath)){
+            const mmlDataJson = JSON.parse(fs.readFileSync(mmlDataJsonPath,'utf-8'))
+            const resourcesStore:{store:string,dirs:string[]} | null = mmlDataJson.resourcesStore || null
+
+            if(resourcesStore && resourcesStore.store){
+                this.resourcesStore = new ResourcesStore({storePath:resourcesStore.store,versionPath:this.versionPath,dirs:resourcesStore.dirs})
+            }
+
+        }
+
+        if(this.resourcesStore){
+            console.log("抽取资源库文件")
+            await this.resourcesStore.outStore()
+            console.log("抽取完成")
+        }
+
 
         if (!this.java) {
             //检查目录
@@ -196,7 +221,7 @@ export default class ClientLauncher extends EventEmitter {
         }
         else {
             this.addProcessListener()
-            
+
             const isWindowCreate = new Promise<boolean>((resolve, reject) => {
                 if (!this.gameProcess?.pid) {
                     resolve(false)
@@ -221,7 +246,10 @@ export default class ClientLauncher extends EventEmitter {
                     }, 100);
                 }
             })
+
             await isWindowCreate
+
+
 
             if (this.launchOptions.title) {
                 WinCppAddon.modifyWinTitle(this.gameProcess.pid, this.launchOptions.title)
@@ -435,22 +463,39 @@ export default class ClientLauncher extends EventEmitter {
 
     public addProcessListener() {
         if (this.gameProcess && this.gameProcess.pid && !this.gameProcess.killed) {
+
+            //修改游戏启动时间的记录
+            const MMLDir = existify(this.versionPath, 'MML')
+            const json = new JSONIO(path.join(MMLDir, 'data.json'))
+
+            const launchedTime = Date.now()
+
+            json.modify('latestRun', launchedTime).save()
+            json.modify('latestRunUTC',new Date().toUTCString())
+
+            const updatePlayTime = () => {
+                const playTime = json.get('playTime') || 0
+                const newPlayTime =  Math.floor(playTime + Date.now() - launchedTime)
+                json.modify('playTime', newPlayTime).save()
+            }
+
+            let playTimeDumpInterval = setInterval(updatePlayTime, 5000);
+
             this.gameProcess.stdout.addListener('data', (data: Buffer) => {
                 this.emit('stdout', data.toString())
             })
             this.gameProcess.stderr.addListener('error', (stderr: Buffer) => {
                 this.emit('stderr', stderr.toString())
             })
-            this.gameProcess.addListener('exit', (code, signal) => {
-                this.emit('exit', code, signal)
+            this.gameProcess.addListener('close', (code, signal) => {
+                this.emit('close', code, signal)
+                updatePlayTime()
+                clearInterval(playTimeDumpInterval)
                 if (code !== 0) {
                     this.emit('crash', code, signal)
                 }
-            })
-            this.gameProcess.addListener('close', (code, signal) => {
-                this.emit('close', code, signal)
-                if (code !== 0) {
-                    this.emit('crash', code, signal)
+                if(this.resourcesStore){
+                    this.resourcesStore.inStore(true)
                 }
             })
         }
