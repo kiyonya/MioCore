@@ -7,6 +7,7 @@ import ClientLauncher from "./src/launch.ts";
 import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
 import JSONIO from "./src/utils/jsonIO.ts";
 import ResourcesPool from "./src/modules/game/resources_storage.ts";
+import SLPHandShake from "./src/modules/game/server_list_ping.ts";
 
 
 class MioCore {
@@ -137,4 +138,5 @@ async function launch() {
     })
 }
 
-launch()
+
+new SLPHandShake("localhost",25565).getServerStatus().then(console.log)
