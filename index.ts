@@ -8,6 +8,7 @@ import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
 import JSONIO from "./src/utils/jsonIO.ts";
 import ResourcesPool from "./src/modules/game/resources_storage.ts";
 import SLPHandShake from "./src/modules/game/server_list_ping.ts";
+import InstanceUtil from "./src/modules/game/instance_util.ts";
 
 
 class MioCore {
@@ -113,8 +114,6 @@ async function installClient() {
 }
 
 async function launch() {
-
-    
     const launcher = new ClientLauncher({
         minecraftPath: path.resolve('.minecraft'),
         versionIsolation: true,
@@ -139,4 +138,4 @@ async function launch() {
 }
 
 
-new SLPHandShake("localhost",25565).getServerStatus().then(console.log)
+InstanceUtil.getInstanceFrom(path.resolve('D:/Program/Minecraft/.minecraft/versions'))

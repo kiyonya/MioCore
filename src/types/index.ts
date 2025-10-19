@@ -141,3 +141,14 @@ export type ModrinthIndexJson = {
     neoforge?: string,
   }
 }
+
+export type MMLDataJson = {
+  playTime?:number,
+  latestRun?:number,
+  version:string,
+  modLoader?:Record<string,string> | null,
+  name?:string,
+  mmlVersion?:number,
+  installTime:number,
+  installTimeUTC:string
+}

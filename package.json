@@ -10,8 +10,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@types/ini": "^4.1.1",
     "adm-zip": "^0.5.16",
     "axios": "^1.12.1",
+    "ini": "^5.0.0",
     "jsdom": "^27.0.0",
     "node-downloader-helper": "^2.1.9",
     "p-limit": "^7.1.1",

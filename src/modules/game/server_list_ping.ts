@@ -1,4 +1,5 @@
 import net from 'net'
+import dns from 'dns'
 
 interface ServerStatus {
     description?: string,
@@ -25,16 +26,58 @@ export default class SLPHandshake {
         this.ping = undefined
     }
 
-    public createSocket(): Promise<net.Socket> {
-        const connectStart = Date.now()
-        const socket: net.Socket = net.createConnection({ host: this.host, port: this.port })
+    public async createSocket(timeoutMs: number = 5000): Promise<net.Socket> {
+        const connectStart = Date.now();
+
         return new Promise((resolve, reject) => {
-            socket.on('connect', () => {
-                this.ping = Date.now() - connectStart
-                resolve(socket)
-            })
-            socket.on('error', reject)
-        })
+            const socket = net.createConnection({
+                host: this.host,
+                port: this.port,
+            });
+
+            let isCompleted = false;
+
+            const complete = (result: { type: 'success', socket: net.Socket } | { type: 'error', error: Error }) => {
+                if (isCompleted) return;
+                isCompleted = true;
+
+                clearTimeout(timeoutId);
+                socket.removeAllListeners();
+
+                if (result.type === 'success') {
+                    this.ping = Date.now() - connectStart;
+                    resolve(result.socket);
+                } else {
+                    socket.destroy();
+                    reject(result.error);
+                }
+            };
+
+            const timeoutId = setTimeout(() => {
+                complete({
+                    type: 'error',
+                    error: new Error(`Connection timeout after ${timeoutMs}ms to ${this.host}:${this.port}`)
+                });
+            }, timeoutMs);
+
+            socket.once('connect', () => {
+                complete({ type: 'success', socket });
+            });
+
+            socket.once('error', (error) => {
+                complete({ type: 'error', error });
+            });
+
+            // 处理 socket 在事件发生前被关闭的情况
+            socket.once('close', () => {
+                if (!isCompleted) {
+                    complete({
+                        type: 'error',
+                        error: new Error('Socket closed before connection was established')
+                    });
+                }
+            });
+        });
     }
 
     public async getServerStatus(): Promise<{ status: ServerStatus, ping: number }> {
