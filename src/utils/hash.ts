@@ -57,4 +57,10 @@ export default class HashUtil {
         })
     }
 
+    public static md5OfString(string:string){
+        const hash = crypto.createHash('md5')
+        hash.update(Buffer.from(string))
+        return hash.digest('hex')
+    }
+
 }

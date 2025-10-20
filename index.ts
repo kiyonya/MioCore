@@ -138,4 +138,5 @@ async function launch() {
 }
 
 
-InstanceUtil.getInstanceFrom(path.resolve('D:/Program/Minecraft/.minecraft/versions'))
+// InstanceUtil.getInstanceFrom(path.resolve('D:/Program/Minecraft/.minecraft'))
+InstanceUtil.getModInfoOfDir(path.resolve('D:/Program/Minecraft/.minecraft/versions/Eden Aerospace-2.0.6/mods'))

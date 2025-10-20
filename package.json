@@ -16,8 +16,10 @@
     "ini": "^5.0.0",
     "jsdom": "^27.0.0",
     "node-downloader-helper": "^2.1.9",
+    "original-fs": "^1.2.0",
     "p-limit": "^7.1.1",
     "progress": "^2.0.3",
+    "toml": "^3.0.0",
     "tsc": "^2.0.4"
   },
   "devDependencies": {

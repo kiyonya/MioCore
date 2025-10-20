@@ -44,3 +44,27 @@ export function objectToManifest(manifestObj: Record<string, string | string[]>)
     manifestContent += '\n';
     return manifestContent;
 }
+
+export function getFileNameFromPath(pathString:string){
+  return path.basename(pathString).replace(path.extname(pathString),'')
+}
+
+export async function getDirSize(dirPath: string): Promise<number> {
+    let totalSize = 0;
+    try {
+        const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dirPath, entry.name);
+            if (entry.isDirectory()) {
+                totalSize += await getDirSize(fullPath);
+            } else if (entry.isFile()) {
+                const stats = await fs.promises.stat(fullPath);
+                totalSize += stats.size;
+            }
+        }
+    } catch (err) {
+        console.error(`处理路径 ${dirPath} 时出错:`, err);
+        throw err;
+    }
+    return totalSize;
+}
