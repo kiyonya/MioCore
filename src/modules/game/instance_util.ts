@@ -1,5 +1,5 @@
 import fs from 'fs'
-import path from 'path'
+import path, { dirname } from 'path'
 import AdmZip from 'adm-zip'
 
 import HashUtil from '../../utils/hash.ts'
@@ -9,9 +9,11 @@ import JSONIO from '../../utils/jsonIO.ts'
 
 import INI from '../../utils/ini.ts'
 import { type MMLDataJson } from '../../types/index.ts'
-import { existify, getDirSize } from '../../utils/io.ts'
+import { existify, getDirSize, getFileNameFromPath } from '../../utils/io.ts'
 
 import toml from 'toml'
+import axios from 'axios'
+import ModActions from './mod_actions.ts'
 
 
 
@@ -76,12 +78,21 @@ type ForgeModTomlLike = {
   license: string
   loaderVersion: string
   modLoader: string
+}
 
+
+type ResourcePackInfo = {
+  description: string,
+  name: string,
+  path: string,
+  icon: Buffer | null
 }
 
 export default abstract class InstanceUtil {
 
-  public static async getInstanceFrom(
+  public static ModActions = ModActions
+
+  public static async readInstanceFrom(
     minecraftPath: string,
     versionIsolation: boolean = true
   ) {
@@ -106,7 +117,7 @@ export default abstract class InstanceUtil {
     let st = Date.now()
 
     const processInstancePromises = instanceDirs.map((dir: string) =>
-      limit(() => this.getInstanceOf(dir, minecraftPath, versionIsolation))
+      limit(() => this.readInstanceOf(dir, minecraftPath, versionIsolation))
     )
     const result = await Promise.all(processInstancePromises)
     let et = Date.now()
@@ -115,7 +126,7 @@ export default abstract class InstanceUtil {
     console.log(et - st)
   }
 
-  public static async getInstanceOf(
+  public static async readInstanceOf(
     instanceDir: string,
     minecraftPath: string,
     versionIsolation: boolean = true
@@ -178,7 +189,7 @@ export default abstract class InstanceUtil {
     }
     //模组统计
     if (fs.existsSync(path.join(instanceDir, 'mods'))) {
-      const mods = await this.getModListOfDir(path.join(instanceDir, 'mods'))
+      const mods = await this.readModDir(path.join(instanceDir, 'mods'))
       instanceInfo.modsCount = mods.length
     }
     //截图统计
@@ -195,7 +206,7 @@ export default abstract class InstanceUtil {
     //存档统计
     if (fs.existsSync(path.join(instanceDir, 'saves'))) {
       const savesDir = path.join(instanceDir, 'saves')
-      const saves = await this.getSavesOf(savesDir)
+      const saves = await this.readSavesFromDir(savesDir)
       instanceInfo.saves = saves
     }
 
@@ -207,7 +218,7 @@ export default abstract class InstanceUtil {
     return instanceInfo
   }
 
-  public static async getModListOfDir(
+  public static async readModDir(
     modsDir: string,
     ignoreDisabled: boolean = false
   ) {
@@ -224,49 +235,40 @@ export default abstract class InstanceUtil {
     return mods
   }
 
-  public static async getModInfoOfDir(modsDir: string) {
+  public static async readModInfoFromDir(modsDir: string): Promise<ModInfo[]> {
 
     if (!fs.existsSync(modsDir)) {
       throw new DirNotFoundException('mods文件夹不存在', modsDir)
     }
-    const mods = await this.getModListOfDir(modsDir, true)
 
-    let st = Date.now()
-    const limit = pLimit(32)
-    const modInfoPromises = mods.map(modFile => limit(() => this.getModInfoOf(modFile)))
+    let mods = await this.readModDir(modsDir, true)
+
+    const limit = pLimit(16)
+    const modInfoPromises = mods.map(modFile => limit(() => this.readModInfoOf(modFile)))
     const modInfos = await Promise.all(modInfoPromises)
-    let et = Date.now()
-
-    console.log(`读取${mods.length}个模组信息耗时${et - st}ms`)
 
     console.log(modInfos)
-
     return modInfos
-
   }
 
-  public static async getModInfoOf(modFile: string) {
+  public static async readModInfoOf(modFile: string) {
     if (!fs.existsSync(modFile)) {
       throw new FileNotFoundException('mod文件不存在', modFile)
     }
-
     const zip = new AdmZip(modFile)
 
     if (zip.getEntry('META-INF/mods.toml')) {
       //forge mod
       return this.forgeModInfoReader(zip)
     }
-    // else if(zip.getEntry('fabric.mod.json')){
-    //   //fabric mod
-    // }
-    // else if(zip.getEntry('quilt.mod.json')){
-    //   //quilt mod
-    // }
+    else if (zip.getEntry('fabric.mod.json')) {
+      //fabric mod
+      return this.fabricModInfoReader(zip)
+    }
     else return {} as ModInfo
   }
 
-
-  public static async getSavesOf(
+  public static async readSavesFromDir(
     savesDir: string,
     countSize: boolean = false
   ): Promise<SaveInfo[]> {
@@ -294,10 +296,70 @@ export default abstract class InstanceUtil {
     return saves
   }
 
-  protected static getMMLDataFromPCL(
-    instanceDir: string,
-    PCLSetupINI: string
-  ): MMLDataJson {
+  public static async readResourcePacksDir(resourcePacksDir: string): Promise<string[]> {
+    if (!fs.existsSync(resourcePacksDir)) {
+      throw new DirNotFoundException('找不到文件夹', resourcePacksDir)
+    }
+    const resourcePacks = fs.readdirSync(resourcePacksDir).map(i => path.join(resourcePacksDir, i)).filter(p => [".zip"].includes(path.extname(p)))
+
+    return resourcePacks
+  }
+
+  public static async readResourcePacksInfoFromDir(resourcePacksDir: string): Promise<ResourcePackInfo[]> {
+    const resourcePacks = await this.readResourcePacksDir(resourcePacksDir)
+
+    const limit = pLimit(16)
+    const resourcePackInfoPromises = resourcePacks.map(rp => limit(() => this.readResourcePackInfoOf(rp)))
+    const resourcePacksInfo = await Promise.all(resourcePackInfoPromises)
+    return resourcePacksInfo
+
+  }
+
+  public static async readResourcePackInfoOf(resourcePackPath: string): Promise<ResourcePackInfo> {
+    if (!fs.existsSync(resourcePackPath)) {
+      throw new FileNotFoundException('找不到文件', resourcePackPath)
+    }
+    const zip = new AdmZip(resourcePackPath)
+
+    const resourcePackInfo: ResourcePackInfo = {
+      name: getFileNameFromPath(resourcePackPath),
+      description: '',
+      icon: null,
+      path: resourcePackPath
+    }
+    const mcmetaJSONEntry = zip.getEntry('pack.mcmeta')
+    if (mcmetaJSONEntry) {
+      const meta = JSON.parse(zip.readAsText(mcmetaJSONEntry, 'utf-8'))
+      resourcePackInfo.description = meta.description || ''
+    }
+    const iconEntry = zip.getEntry('pack.png')
+    if (iconEntry) {
+      resourcePackInfo.icon = zip.readFile(iconEntry) || null
+    }
+
+    return resourcePackInfo
+  }
+
+  public static async createBackup(rawPath:string,backupsPath:string){
+
+    if(fs.existsSync(backupsPath) && !fs.statSync(backupsPath).isDirectory()){
+      throw new Error("无法存储到非目录")
+    }
+    if(!fs.existsSync(rawPath)){
+      throw new DirNotFoundException("找不到目录",rawPath)
+    }
+
+    existify(backupsPath)
+
+    const zip = new AdmZip()
+    await zip.addLocalFolderPromise(rawPath,{})
+    const backupFile = path.join(backupsPath,`${Date.now()}.zip`)
+    await zip.writeZipPromise(backupFile)
+
+    return backupFile
+  }
+
+  protected static getMMLDataFromPCL(instanceDir: string,PCLSetupINI: string): MMLDataJson {
     const PCLSetup = INI.parse(fs.readFileSync(PCLSetupINI, 'utf-8'))
 
     const versionName = path.basename(instanceDir)
@@ -362,5 +424,31 @@ export default abstract class InstanceUtil {
     }
     return modInfo
   }
-}
 
+  protected static async fabricModInfoReader(modJarInstance: AdmZip): Promise<ModInfo> {
+    const fabricIndexJson = JSON.parse(modJarInstance.readAsText(modJarInstance.getEntry('fabric.mod.json') as AdmZip.IZipEntry, 'utf-8'))
+
+    const iconEntry = fabricIndexJson.icon || null
+    let iconData: Buffer | null = null
+
+    if (iconEntry && modJarInstance.getEntry(iconEntry)) {
+      iconData = modJarInstance.readFile(modJarInstance.getEntry(iconEntry) as AdmZip.IZipEntry) || null
+    }
+
+    const modInfo: ModInfo = {
+      name: fabricIndexJson.name,
+      modId: fabricIndexJson.id,
+      version: fabricIndexJson.version,
+      description: fabricIndexJson.description || '',
+      authors: fabricIndexJson.authors || [],
+      dependencies: fabricIndexJson.depends ? Object.keys(fabricIndexJson.depends) : [],
+      displayName: fabricIndexJson.name,
+      icon: iconData,
+      loader: 'fabric',
+      license: fabricIndexJson.license || ''
+    }
+
+    return modInfo
+  }
+
+}
