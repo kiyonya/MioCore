@@ -9,6 +9,7 @@ import JSONIO from "./src/utils/jsonIO.ts";
 import ResourcesPool from "./src/modules/game/resources_storage.ts";
 import SLPHandShake from "./src/modules/game/server_list_ping.ts";
 import InstanceUtil from "./src/modules/game/instance_util.ts";
+import ModrinthAPI from "./src/modules/community/modrinth.ts";
 
 
 class MioCore {
@@ -137,7 +138,4 @@ async function launch() {
     })
 }
 
-
-// InstanceUtil.getInstanceFrom(path.resolve('D:/Program/Minecraft/.minecraft'))
-
-InstanceUtil.readResourcePacksInfoFromDir(path.resolve('D:/Program/Minecraft/.minecraft/versions/夜喵瓦基整合v0.0.1/resourcepacks')).then(console.log)
+ModrinthAPI.Common.getProjectVersions('fabric.api').then(console.log)
