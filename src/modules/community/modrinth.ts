@@ -4,7 +4,7 @@ import fs from 'fs'
 import HashUtil from '../../utils/hash.ts'
 import { FileNotFoundException } from '../../error.ts'
 
-export type ModrinthProjectTypes = "mod" | "modpack" | "resourcepacks" | "datapack" | "shaders" | "plugins"
+export type ModrinthProjectTypes = "mod" | "modpack" | "resourcepacks" | "datapack" | "shaders" | "plugins" | 'project'
 
 export type ProjectSearchOptions = {
     query?: string
@@ -88,6 +88,32 @@ export type ModrinthUpdateOptions = {
     game_versions: string[],
     algorithm: 'sha1' | 'sha512'
 }
+
+export type ModrinthCategories = {
+    icon: string,
+    name: string,
+    project_type: ModrinthProjectTypes
+}
+
+export type ModrinthLoaders = {
+    icon: string,
+    name: string,
+    supported_project_types: Array<ModrinthProject>
+}
+
+export type ModrinthLikeGameVersions = {
+    version: string,
+    version_type: 'release' | 'snapshot' | 'alpha' | 'beta',
+    date: string,
+    major: boolean
+}
+
+export type ModrinthSideTypes = [
+    "required",
+    "optional",
+    "unsupported",
+    "unknown"
+]
 
 
 export default class ModrinthAPI {
@@ -208,6 +234,38 @@ export default class ModrinthAPI {
             const hashes = await Promise.all(filePath.map(i => limit(() => HashUtil.sha1(i))))
             return this.getMultipleLatestVersionsFromHashes(hashes, options)
         }
+    }
+
+    static readonly Tag = class Tag {
+
+        public static async getCategoriesList(): Promise<Array<ModrinthCategories>> {
+            const resp = await axios.get('https://api.modrinth.com/v2/tag/category', { responseType: 'json' })
+            return resp.data as ModrinthCategories[]
+        }
+
+        public static async getLoaderList(): Promise<Array<ModrinthLoaders>> {
+            const resp = await axios.get('https://api.modrinth.com/v2/tag/loader', { responseType: 'json' })
+            return resp.data as ModrinthLoaders[]
+        }
+
+        public static async getGameList(): Promise<Array<ModrinthLikeGameVersions>> {
+            const resp = await axios.get('https://api.modrinth.com/v2/tag/game_version', { responseType: 'json' })
+            return resp.data as ModrinthLikeGameVersions[]
+        }
+
+        public static async getProjectTypeList(): Promise<Array<ModrinthProjectTypes>> {
+            const resp = await axios.get('https://api.modrinth.com/v2/tag/project_type', { responseType: 'json' })
+            return resp.data as ModrinthProjectTypes[]
+        }
+
+        public static SideType: ModrinthSideTypes = [
+            "required",
+            "optional",
+            "unsupported",
+            "unknown"
+        ]
+
+        public static ProjectType = ["mod", "modpack", "resourcepack", "shader", "plugin", "datapack"]
     }
 }
 

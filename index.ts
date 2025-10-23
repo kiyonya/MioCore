@@ -2,13 +2,8 @@ import path from "path";
 import Server from "./src/server.ts";
 import Modpack from "./src/modpack.ts";
 import Client from "./src/client.ts";
-import JavaRuntimeInstaller from "./src/modules/installer/jrt_installer.ts";
 import ClientLauncher from "./src/launch.ts";
 import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
-import JSONIO from "./src/utils/jsonIO.ts";
-import ResourcesPool from "./src/modules/game/resources_storage.ts";
-import SLPHandShake from "./src/modules/game/server_list_ping.ts";
-import InstanceUtil from "./src/modules/game/instance_util.ts";
 import ModrinthAPI from "./src/modules/community/modrinth.ts";
 
 
@@ -78,17 +73,6 @@ async function installModPackByURL() {
     await modpackInstaller.installFromURL("https://cdn.modrinth.com/data/8yKzGJOG/versions/bSPdKEca/Slimes%20AdventureRE%201.8.2.mrpack")
 }
 
-async function jvmi() {
-    const jin = new JavaRuntimeInstaller('java-runtime-delta', './java/21', 'linux')
-    jin.on('progress', console.log)
-    await jin.install()
-}
-
-
-// console.log(Mirror.getMirrors("https://libraries.minecraft.net/com/mojang/logging/1.0.0/logging-1.0.0.jar",false))
-
-
-
 function docrash() {
     const csa = new CrashAnalyzer("D:/Program/Minecraft/.minecraft/versions/养老/crash-reports/crash-2025-06-10_22.29.34-client.txt")
 
@@ -138,4 +122,5 @@ async function launch() {
     })
 }
 
-ModrinthAPI.Common.getProjectVersions('fabric.api').then(console.log)
+ModrinthAPI.Common
+ModrinthAPI.Tag
