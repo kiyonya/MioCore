@@ -1,8 +1,7 @@
 import axios from 'axios'
 import pLimit from 'p-limit'
 import fs from 'fs'
-import HashUtil from '../../utils/hash.ts'
-import { FileNotFoundException } from '../../error.ts'
+
 
 export type ModrinthProjectTypes = "mod" | "modpack" | "resourcepacks" | "datapack" | "shaders" | "plugins" | 'project'
 
@@ -187,15 +186,9 @@ export default class ModrinthAPI {
             return resp.data as ModrinthProjectVersion
         }
 
-        public static async getVersionsFromFileHashes(hashes: Array<string>, algorithm: 'sha1' | 'sha512' = 'sha1'): Promise<Array<ModrinthProjectVersion>> {
-            const url = new URL(`https://api.modrinth.com/v2/version_files/${algorithm}`)
-            const params = new URLSearchParams()
-            hashes.forEach(hash => {
-                params.append('hashes', hash)
-            })
-            url.search = params.toString()
-            const resp = await axios.get(url.toString(), { responseType: 'json' })
-            return resp.data as Array<ModrinthProjectVersion>
+        public static async getVersionsFromFileHashes(hashes: Array<string>, algorithm: 'sha1' | 'sha512' = 'sha1'): Promise<Record<string,ModrinthProjectVersion>> {
+            const resp = await axios.post(`https://api.modrinth.com/v2/version_files`,{hashes,algorithm:algorithm}, { responseType: 'json' })
+            return resp.data as Record<string,ModrinthProjectVersion>
         }
 
         public static async getLatestVersionFromHash(hash: string, options: ModrinthUpdateOptions): Promise<ModrinthProjectVersion> {
@@ -224,16 +217,6 @@ export default class ModrinthAPI {
             return resp.data as Record<string, ModrinthProjectVersion>
         }
 
-        public static async computedFileHashesAndGetLatestVersions(filePath: string[], options: ModrinthUpdateOptions): Promise<Record<string, ModrinthProjectVersion>> {
-            for (const file of filePath) {
-                if (!fs.existsSync(file)) {
-                    throw new FileNotFoundException("找不到文件", file)
-                }
-            }
-            const limit = pLimit(32)
-            const hashes = await Promise.all(filePath.map(i => limit(() => HashUtil.sha1(i))))
-            return this.getMultipleLatestVersionsFromHashes(hashes, options)
-        }
     }
 
     static readonly Tag = class Tag {

@@ -17,13 +17,13 @@ import ModActions from './mod_actions.ts'
 
 
 
-type InstanceInfoStruct = {
+export type InstanceInfoStruct = {
   icon: string | null
   name: string
   path: string
   modsCount: number
   screenshotsCount: number
-  modLoaders?: Record<string, string> | null
+  modLoader?: Record<string, string> | null
   ok?: boolean
   canInstallMod: boolean
   installTime: number
@@ -35,6 +35,7 @@ type InstanceInfoStruct = {
   pathMD5: string
   minecraftPath: string
   versionIsolation: boolean
+  version:string
 }
 
 type SaveInfo = {
@@ -148,7 +149,8 @@ export default abstract class InstanceUtil {
       ok: false,
       canInstallMod: false,
       minecraftPath: minecraftPath,
-      versionIsolation: versionIsolation
+      versionIsolation: versionIsolation,
+      version:''
     }
 
     if (
@@ -171,9 +173,10 @@ export default abstract class InstanceUtil {
         .toObject() as MMLDataJson
       const modLoader = mmlDataJson['modLoader'] || null
       instanceInfo.installTime = mmlDataJson.installTime
-
+      instanceInfo.version = mmlDataJson.version
       instanceInfo.latestRun = mmlDataJson.latestRun || -1
       instanceInfo.playTime = mmlDataJson.playTime || -1
+      instanceInfo.modLoader = modLoader
     } else if (fs.existsSync(path.join(instanceDir, 'PCL', 'Setup.ini'))) {
       const MMLDataJson = this.getMMLDataFromPCL(
         instanceDir,
@@ -184,8 +187,9 @@ export default abstract class InstanceUtil {
         JSON.stringify(MMLDataJson, null, 4),
         'utf-8'
       )
-      instanceInfo.modLoaders = MMLDataJson.modLoader
+      instanceInfo.modLoader = MMLDataJson.modLoader
       instanceInfo.installTime = MMLDataJson.installTime
+      instanceInfo.version = MMLDataJson.version
     }
     //模组统计
     if (fs.existsSync(path.join(instanceDir, 'mods'))) {
@@ -211,7 +215,7 @@ export default abstract class InstanceUtil {
     }
 
     //
-    if (instanceInfo.modLoaders) {
+    if (instanceInfo.modLoader) {
       instanceInfo.canInstallMod = true
     }
 

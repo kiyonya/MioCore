@@ -5,6 +5,8 @@ import Client from "./src/client.ts";
 import ClientLauncher from "./src/launch.ts";
 import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
 import ModrinthAPI from "./src/modules/community/modrinth.ts";
+import GameExport from "./src/modules/export/game_export.ts";
+import CurseforgeAPI from "./src/modules/community/curseforge.ts";
 
 
 class MioCore {
@@ -111,8 +113,8 @@ async function launch() {
 
     launcher.on('stdout', (str) => console.log(str))
     launcher.on('stderr', (err) => { console.log("游戏报错" + err) })
-    launcher.on('crash', (code, signal) => { console.log('游戏崩溃了');launcher.removeAllListeners() })
-    launcher.on('failed', (err) => { console.log("无法启动" + err);launcher.removeAllListeners() })
+    launcher.on('crash', (code, signal) => { console.log('游戏崩溃了'); launcher.removeAllListeners() })
+    launcher.on('failed', (err) => { console.log("无法启动" + err); launcher.removeAllListeners() })
     launcher.on('close', (code, signal) => { console.log("游戏正常退出"); launcher.removeAllListeners() })
 
     await launcher.launch({
@@ -124,3 +126,16 @@ async function launch() {
 
 ModrinthAPI.Common
 ModrinthAPI.Tag
+
+// const exporter = new GameExport({ versionPath: "D:/Program/Minecraft/.minecraft/versions/空岛汉堡店", minecraftPath: "D:/Program/Minecraft/.minecraft", versionIsolation: true })
+
+// const entries = exporter.getInstanceExportEntries()
+
+// exporter.exportToModpack(exporter.createExportEntriesByNames(['mods', 'config', 'kubejs']), 'modrinth', {
+//     online: false
+// }).then(zip => zip?.writeZip("export.zip"))
+
+
+const curseforgeAPI = new CurseforgeAPI("")
+
+curseforgeAPI.
