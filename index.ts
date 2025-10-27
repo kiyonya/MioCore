@@ -7,6 +7,7 @@ import CrashAnalyzer from "./src/modules/check/crash_analyzer.ts";
 import ModrinthAPI from "./src/modules/community/modrinth.ts";
 import GameExport from "./src/modules/export/game_export.ts";
 import CurseforgeAPI from "./src/modules/community/curseforge.ts";
+import { CurseforgeAPIKey } from "./data.ts";
 
 
 class MioCore {
@@ -136,6 +137,6 @@ ModrinthAPI.Tag
 // }).then(zip => zip?.writeZip("export.zip"))
 
 
-const curseforgeAPI = new CurseforgeAPI("")
+const curseforgeAPI = new CurseforgeAPI(CurseforgeAPIKey)
 
-curseforgeAPI.
+curseforgeAPI.getFileDownloadURLByModIDAndFileID(238222,6832638).then(console.log)

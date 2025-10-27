@@ -28,7 +28,6 @@ type ModrinthModsItem = {
     fileSize: number
 }
 
-
 export type ModrinthIndexJSON = {
     game: "minecraft",
     formatVersion: number,
