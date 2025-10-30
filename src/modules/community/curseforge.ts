@@ -6,12 +6,12 @@ import axios, {
 
 export interface CurseForgeSearchOptions {
     classId?: number
-    categroyId?: number
+    categoryId?: number
     categoryIds?: number[]
     gameVersion?: string
     gameVersions?: string[]
     searchFilter?: string
-    sortField?: string
+    sortField?: number
     sortOrder?: string
     modLoaderType?: string
     modLoaderTypes?: string[]
@@ -55,7 +55,7 @@ export interface CurseforgeCategory {
     classId: number
     dateModified: string
     displayIndex: number
-    parentCategoryId: number
+    parentCategoryId?: number
     id: number
     name: string
     isClass: boolean
@@ -207,9 +207,9 @@ export default class CurseforgeAPI {
     constructor(apiKey: string) {
         console.log('Curseforge API Key:', apiKey)
 
-        this.apiHost = 'https://api.curseforge.com'
+        this.apiHost = 'https://mod.mcimirror.top/curseforge/'
         this.client = axios.create({
-            baseURL: 'https://api.curseforge.com',
+            baseURL: 'https://mod.mcimirror.top/curseforge/',
             headers: {
                 'x-api-key': apiKey,
                 'Content-Type': 'application/json'
@@ -271,18 +271,25 @@ export default class CurseforgeAPI {
         classId?: number,
         classOnly?: boolean
     ): Promise<{ data: Array<CurseforgeCategory> }> {
-        const url = new URL('/v1/categories', this.apiHost)
+        const url = new URL('/v1/categories', "https://api.curseforge.com/")
         url.searchParams.append('gameId', '432')
         classId && url.searchParams.append('classId', String(classId))
         classOnly && url.searchParams.append('classOnly', String(classOnly))
 
+        console.log(url.toString())
         return this.requestWithRetry<{ data: Array<CurseforgeCategory> }>({
             method: 'get',
             url: url.toString()
         })
     }
 
-    public async getModByModID(
+    /**
+     * 
+     * @param modIds 模组（迫真）id，其实其他资源的id也可以，默认数组
+     * @param pcOnly 
+     * @returns 
+     */
+    public async getModOrProjectById(
         modIds: number | number[],
         pcOnly: boolean = true
     ): Promise<{ data: Array<CurseforgeResourceDetail> }> {
@@ -319,6 +326,8 @@ export default class CurseforgeAPI {
                 url.searchParams.append(key, String(value))
             }
         }
+
+        console.log(url.toString())
 
         return this.requestWithRetry<CurseforgeSearchResult>({
             method: 'get',

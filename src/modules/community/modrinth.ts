@@ -3,13 +3,13 @@ import pLimit from 'p-limit'
 import fs from 'fs'
 
 
-export type ModrinthProjectTypes = "mod" | "modpack" | "resourcepacks" | "datapack" | "shaders" | "plugins" | 'project'
+export type ModrinthProjectTypes = "mod" | "modpack" | "resourcepack" | "datapack" | "shader" | "plugins" | 'project' 
 
 export type ProjectSearchOptions = {
     query?: string
     facets?: {
-        categories?: string,
-        versions?: string,
+        categories?: string | string[],
+        versions?: string | string[],
         project_type?: ModrinthProjectTypes | Array<ModrinthProjectTypes>
     }
     index?: "relevance" | "downloads" | "follows" | "newest" | "updated"
@@ -17,11 +17,23 @@ export type ProjectSearchOptions = {
     offset?: number
 }
 
+export interface ModrinthGallery {
+    url:string,
+    created:string,
+    description:string,
+    featured:boolean,
+    raw_url:string,
+    title:string,
+}
+
 export type ModrinthProject = {
-    project_id: string,
+    id: string,
     thread_id?: string,
+    author:string,
     slug?: string,
     title: string,
+    game_versions:string[],
+    loaders:string[],
     description: string,
     categories: Array<string>,
     client_side: string,
@@ -35,9 +47,10 @@ export type ModrinthProject = {
     monetization_status?: string,
     follows: number,
     latest_version?: string,
-    date_created: string,
-    date_modified: string,
-    gallery?: Array<string>,
+    updated:string,
+    approved:string,
+    published:string
+    gallery?: Array<ModrinthGallery>,
     donation_urls?: Record<string, string>,
     discord_url?: string,
     wiki_url?: string,
@@ -91,7 +104,8 @@ export type ModrinthUpdateOptions = {
 export type ModrinthCategories = {
     icon: string,
     name: string,
-    project_type: ModrinthProjectTypes
+    project_type: ModrinthProjectTypes,
+    header:string
 }
 
 export type ModrinthLoaders = {
@@ -122,12 +136,16 @@ export default class ModrinthAPI {
         public static async searchProjects(projectSearchOptions: ProjectSearchOptions): Promise<ModrinthSearchHits> {
             const facetsMap: Map<string, string[]> = new Map()
             if (projectSearchOptions.facets) {
-                for (const [key, value] of Object.entries(projectSearchOptions.facets)) {
 
-                    facetsMap.set(key, [...(facetsMap.has(key) ? facetsMap.get(key) as string[] : []), ...(Array.isArray(value) ? value.map(i => `${key}:${i}`) : [`${key}:${value}`])])
+                for (const [key, value] of Object.entries(projectSearchOptions.facets)) {
+                    if(key === 'categories'){
+                         facetsMap.set(key, [...(facetsMap.has(key) ? facetsMap.get(key) as string[] : []), ...(Array.isArray(value) ? value : [value])])
+                         continue
+                    }
+                   facetsMap.set(key, [...(facetsMap.has(key) ? facetsMap.get(key) as string[] : []), ...(Array.isArray(value) ? value.map(i=>`${key}:${i}`) : [`${key}:${value}`])])
                 }
             }
-            const facetsArray = [...facetsMap.values()]
+            const facetsArray = [...facetsMap.values()].filter(i=>i.length)
             const url = new URL("https://api.modrinth.com/v2/search")
 
             projectSearchOptions.query && url.searchParams.append('query', projectSearchOptions.query)
@@ -135,6 +153,8 @@ export default class ModrinthAPI {
             projectSearchOptions.limit && url.searchParams.append('limit', String(projectSearchOptions.limit))
             projectSearchOptions.offset && url.searchParams.append('offset', String(projectSearchOptions.offset))
             facetsArray.length && url.searchParams.append('facets', JSON.stringify(facetsArray))
+
+            console.log(JSON.stringify(facetsArray))
 
             const resp = await axios.get(url.toString(), { responseType: 'json' })
             return resp.data as ModrinthSearchHits

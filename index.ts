@@ -8,6 +8,8 @@ import ModrinthAPI from "./src/modules/community/modrinth.ts";
 import GameExport from "./src/modules/export/game_export.ts";
 import CurseforgeAPI from "./src/modules/community/curseforge.ts";
 import { CurseforgeAPIKey } from "./data.ts";
+import MultipleAPI from "./src/modules/community/multiple_api.ts";
+import { writeFileSync } from "fs";
 
 
 class MioCore {
@@ -137,6 +139,34 @@ ModrinthAPI.Tag
 // }).then(zip => zip?.writeZip("export.zip"))
 
 
-const curseforgeAPI = new CurseforgeAPI(CurseforgeAPIKey)
 
-curseforgeAPI.getFileDownloadURLByModIDAndFileID(238222,6832638).then(console.log)
+
+// curseforgeAPI.getCategories(6, true).then(data => console.log(data.data.filter(i => i.parentCategoryId === 6)))
+// ModrinthAPI.Common.searchProjects({
+//     facets: {
+//         categories: 'food',
+//         project_type:'mod'
+//     }
+// }).then(console.log)
+
+const mt = new MultipleAPI(CurseforgeAPIKey)
+
+
+// mt.multiSearch({type:'mod',categories:'decoration',gameVersion:'1.20.1'},30,0).then(console.log)
+// mt.exportCates().then(data=>{
+//     console.log(data)
+//     writeFileSync('cates.json',JSON.stringify(data,null,2))
+// })
+
+// mt.multiSearch(
+//     {
+//         type: 'mod',
+//         gameVersions: ['1.20.1'],
+//         sortWith: 'downloads',
+
+//     }, 
+//     30, 
+//     0
+// ).then(console.log)
+
+mt.getProject('jei','modrinth').then(console.log)
