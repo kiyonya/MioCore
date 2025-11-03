@@ -1,5 +1,4 @@
 import net from 'net'
-import dns from 'dns'
 
 interface ServerStatus {
     description?: string,

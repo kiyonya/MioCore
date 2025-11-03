@@ -1,21 +1,16 @@
+import path from 'path'
 import fs from 'fs'
-import path, { dirname } from 'path'
 import AdmZip from 'adm-zip'
+import toml from 'toml'
+import pLimit from 'p-limit'
 
 import HashUtil from '../../utils/hash.ts'
 import { DirNotFoundException, FileNotFoundException } from '../../error.ts'
-import pLimit from 'p-limit'
 import JSONIO from '../../utils/jsonIO.ts'
-
 import INI from '../../utils/ini.ts'
 import { type MMLDataJson } from '../../types/index.ts'
 import { existify, getDirSize, getFileNameFromPath } from '../../utils/io.ts'
-
-import toml from 'toml'
-import axios from 'axios'
 import ModActions from './mod_actions.ts'
-
-
 
 export type InstanceInfoStruct = {
   icon: string | null

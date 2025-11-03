@@ -1,8 +1,8 @@
-import EventEmitter from "events";
-import fs from 'fs'
 import path from "path";
-import HashUtil from "../../utils/hash.ts";
+import fs from 'fs'
 import pLimit from "p-limit";
+
+import HashUtil from "../../utils/hash.ts";
 import { existify } from "../../utils/io.ts";
 
 interface ResourcesStoreOptions {
