@@ -1,10 +1,9 @@
-import path from "node:path"
+
 import HashUtil from "../../utils/hash.ts"
 import { CATEGLORIES } from "./cates.ts"
-import CurseforgeAPI, { type CurseForgeSearchOptions } from "./curseforge.ts"
+import CurseforgeAPI, { type CurseforgeFile, type CurseforgeResourceDetail, type CurseForgeSearchOptions } from "./curseforge.ts"
 import { Lang } from "./lang.ts"
-import ModrinthAPI, { type ProjectSearchOptions, type ModrinthProjectTypes } from "./modrinth.ts"
-import { getFileNameFromPath } from "../../utils/io.ts"
+import ModrinthAPI, { type ProjectSearchOptions, type ModrinthProjectTypes, type ModrinthProject, type ModrinthProjectVersion } from "./modrinth.ts"
 
 export type MultiCategloy = "adventure" | "cursed" | "decoration" | "economy" | "equipment" | "food" | "game-mechanics" | "library" | "magic" | "management" | "minigame" | "mobs" | "optimization" | "social" | "storage" | "technology" | "transportation" | "utility" | "worldgen" | "farming" | "ores-and-resources" | "map-and-information" | "structures" | "miscellaneous" | "energy" | "biomes"
 
@@ -33,6 +32,40 @@ export interface CategloriesNotation {
     type: ProjectType
 }
 
+export type MultiReleaseType = 'alpha' | 'beta' | 'release'
+
+export interface MultiFileNotation {
+    fileId: string | number,
+    projectId: string | number,
+
+    displayName: string,
+    fileName: string,
+    releaseType: MultiReleaseType,
+
+    gameVersions: string[],
+    modLoaders: string[],
+
+    fileSize: number,
+    sha1: string,
+    curseforgeFingerprint?: number,
+    url: string,
+    fileDate: string,
+    isServer: boolean,
+
+
+
+    dependencies: {
+        platform: MultiAPIPlatform,
+        required: string[],
+        optional: string[],
+        incomp?: string[]
+    }
+
+}
+
+export type MultiAPIPlatform = 'curseforge' | 'modrinth'
+
+
 export interface ModrinthProjectSearchOptionsWithOnlyArrayFactsAcceptance extends ProjectSearchOptions {
     query?: string
     facets: {
@@ -60,7 +93,7 @@ export interface MultiProjectNotation {
     gallery: string[],
     from: 'modrinth' | 'curseforge',
     slug: string,
-    projectId:string,
+    projectId: string,
 }
 
 export interface MultiProjectDetailNotation extends MultiProjectNotation {
@@ -70,7 +103,7 @@ export interface MultiProjectDetailNotation extends MultiProjectNotation {
         gameVersion: string,
         modLoaders: string[],
         majarFilename: string
-        fileId:string,
+        fileId: string,
     }>
 }
 
@@ -102,10 +135,16 @@ export default class MultipleAPI {
         shaderpack: 'shader',
     }
 
-    public static curseforgeModLoaderIdMap:Record<number,string> = {
-        1:'forge',
-        4:'fabric',
-        6:'neoforge',
+    public static curseforgeModLoaderIdMap: Record<number, string> = {
+        1: 'forge',
+        4: 'fabric',
+        6: 'neoforge',
+    }
+
+    public static curseforgeReleaseTypeMap: Record<number, MultiReleaseType> = {
+        1: 'alpha',
+        2: 'beta',
+        3: 'release'
     }
 
     constructor(CURSEFORGE_API_KEY: string) {
@@ -155,13 +194,13 @@ export default class MultipleAPI {
                 publishDate: hit.published,
                 updateDate: hit.updated,
                 projectType: options.type,
-                gallery: hit.gallery?.map(i=>i.url) || [],
+                gallery: hit.gallery?.map(i => i.url) || [],
                 from: 'modrinth',
                 slug: hit.slug || '',
                 description: hit.description,
                 downloadCount: hit.downloads,
-                projectId:hit.id
-                
+                projectId: hit.id
+
             }
             multiProjectMap.set(hit.slug as string, multiProject)
         }
@@ -183,7 +222,7 @@ export default class MultipleAPI {
                 description: hit.summary,
                 gallery: hit.screenshots.map(i => i.url),
                 from: 'curseforge',
-                projectId:String(hit.id)
+                projectId: String(hit.id)
             }
 
             if (multiProjectMap.has(hit.slug)) {
@@ -228,65 +267,228 @@ export default class MultipleAPI {
         return multiProjectSliced
     }
 
-    public async getProject(projectId:string,platform:'curseforge' | 'modrinth',projectType:ProjectType = 'mod'):Promise<MultiProjectNotation> {
-
-        if(platform === 'curseforge'){
-            if(typeof parseInt(projectId) !== 'number'){
-                throw new Error('不是数字的项目名')
-            }
-            const curseforgeProject =( await this.CurseforgeAPI.getModOrProjectById(Number(projectId),true)).data[0]
-            const modLoaders:number[] = []
-            for(const i of curseforgeProject.latestFilesIndexes){
-                if(i.modLoader){modLoaders.push(i.modLoader)}
-            }
-            const projectNotation:MultiProjectNotation = {
-
-                name: curseforgeProject.name,
-                categories: curseforgeProject.categories.map(i => i.name),
-                icon: curseforgeProject?.logo?.url || '',
-                authors: curseforgeProject.authors.map(i => i.name),
-                gameVersions: [...new Set(curseforgeProject.latestFilesIndexes.map(i => i.gameVersion))],
-                modLoaders: [...new Set(modLoaders.map(i=>MultipleAPI.curseforgeModLoaderIdMap[i]).filter(Boolean))],
-                publishDate: curseforgeProject.dateCreated,
-                updateDate: curseforgeProject.dateModified,
-                downloadCount: curseforgeProject.downloadCount,
-                projectType: projectType,
-                slug:curseforgeProject.slug,
-                description: curseforgeProject.summary,
-                gallery: curseforgeProject.screenshots.map(i => i.url),
-                from: 'curseforge',
-                projectId:String(curseforgeProject.id),
-
-            }
-            return projectNotation
+    public async getProject(projectId: string, platform: MultiAPIPlatform, projectType: ProjectType = 'mod'): Promise<MultiProjectNotation> {
+        if (platform === 'curseforge') {
+            const curseforgeProject = (await this.CurseforgeAPI.getModOrProjectById(projectId, true)).data[0]
+            return this.formatCurseforgeProjectNotation(curseforgeProject, projectType)
         }
         else {
-            const modrinthProject = await ModrinthAPI.Common.getProject(projectId)
-            const projectNotation:MultiProjectNotation = {
-                name: modrinthProject.title,
-                categories: modrinthProject.categories,
-                icon: modrinthProject.icon_url || '',
-                authors: [modrinthProject.author],
-                gameVersions: modrinthProject.game_versions,
-                modLoaders: modrinthProject.loaders,
-                publishDate: modrinthProject.published,
-                updateDate: modrinthProject.updated,
-                projectType: projectType,
-                gallery: modrinthProject.gallery?.map(i=>i.raw_url) || [],
-                from: 'modrinth',
-                slug: modrinthProject.slug || '',
-                description: modrinthProject.description,
-                downloadCount: modrinthProject.downloads,
-                projectId:modrinthProject.id
-            }
-            return projectNotation
+            const modrinthProject = await ModrinthAPI.Common.getProject(String(projectId))
+            return this.formatModrinthProjectNotation(modrinthProject, projectType)
         }
     }
 
+    public async getProjects(projectIds: string[], platform: MultiAPIPlatform, projectType: ProjectType = 'mod'): Promise<MultiProjectNotation[]> {
+        const results: MultiProjectNotation[] = []
+        if (platform === 'curseforge') {
+            const curseforgeProjects = (await this.CurseforgeAPI.getModOrProjectById(projectIds, true)).data || []
+            for (const project of curseforgeProjects) {
+                const projectNotation: MultiProjectNotation = this.formatCurseforgeProjectNotation(project, projectType)
+                results.push(projectNotation)
+            }
+        }
+        else if (platform === 'modrinth') {
+            const modrinthProjects = await ModrinthAPI.Common.getMultipleProjects(projectIds)
+            for (const project of modrinthProjects) {
+                const projectNotation: MultiProjectNotation = this.formatModrinthProjectNotation(project, projectType)
+                results.push(projectNotation)
+            }
+        }
+        return results
+    }
+
+    public async getProjectFiles(projectId: string, platform: 'curseforge' | 'modrinth', projectType: ProjectType) {
+
+        try {
+            if (platform === 'curseforge') {
+                const curseforgeFiles = await this.CurseforgeAPI.getFileOfModID(Number(projectId), { pageSize: 114514 })
+                const dependenciesIds: Set<string> = new Set()
+                const curseforgeFileNotations: MultiFileNotation[] = []
+
+                for (const file of curseforgeFiles.data) {
+                    for (const dependency of file.dependencies) {
+                        if (!dependenciesIds.has(String(dependency.modId))) {
+                            dependenciesIds.add(String(dependency.modId))
+                        }
+                    }
+                    const fileNotation: MultiFileNotation = this.formatCurseforgeFileNotation(file, projectId)
+                    curseforgeFileNotations.push(fileNotation)
+                }
+
+                const dependencyIdToProjectMap: Record<string, MultiProjectNotation> = {}
+
+                const dependenciesProjects = await this.CurseforgeAPI.getModOrProjectById([...dependenciesIds.values()], true)
+                for (const dependencyProject of dependenciesProjects.data || []) {
+                    const notation = this.formatCurseforgeProjectNotation(dependencyProject, projectType)
+                    dependencyIdToProjectMap[notation.projectId] = notation
+                }
+                return {
+                    files: curseforgeFileNotations,
+                    dependenciesMap: dependencyIdToProjectMap
+                }
+            }
+            else if (platform === 'modrinth') {
+                const modrinthFiles = await ModrinthAPI.Common.getProjectVersions(projectId)
+                const dependenciesIds: Set<string> = new Set()
+                const modrinthFileNotations: MultiFileNotation[] = []
+
+                for (const file of modrinthFiles) {
+
+                    for (const dependency of file.dependencies || []) {
+                        !dependenciesIds.has(dependency.project_id) && dependenciesIds.add(dependency.project_id)
+                    }
+                    const notation = this.formatModrinthFileNotation(file, projectId)
+                    modrinthFileNotations.push(notation)
+                }
+
+                const dependencyIdToProjectMap: Record<string, MultiProjectNotation> = {}
+                const dependencyProjects = dependenciesIds.size ? await ModrinthAPI.Common.getMultipleProjects([...dependenciesIds.values()]) : []
+
+                for (const dependencyProject of dependencyProjects) {
+                    const notation = this.formatModrinthProjectNotation(dependencyProject, projectType)
+                    dependencyIdToProjectMap[notation.projectId] = notation
+                }
+                return {
+                    files: modrinthFileNotations,
+                    dependenciesMap: dependencyIdToProjectMap
+                }
+            }
+        } catch (error) {
+            console.error(error)
+            throw error
+        }
 
 
+    }
 
+    private formatCurseforgeProjectNotation(curseforgeProject: CurseforgeResourceDetail, projectType: ProjectType): MultiProjectNotation {
+        const modLoaders: number[] = []
+        for (const i of curseforgeProject.latestFilesIndexes) {
+            if (i.modLoader) { modLoaders.push(i.modLoader) }
+        }
+        const notation: MultiProjectNotation = {
+            name: curseforgeProject.name,
+            categories: curseforgeProject.categories.map(i => i.name),
+            icon: curseforgeProject?.logo?.url || '',
+            authors: curseforgeProject.authors.map(i => i.name),
+            gameVersions: [...new Set(curseforgeProject.latestFilesIndexes.map(i => i.gameVersion))],
+            modLoaders: [...new Set(modLoaders.map(i => MultipleAPI.curseforgeModLoaderIdMap[i]).filter(Boolean))],
+            publishDate: curseforgeProject.dateCreated,
+            updateDate: curseforgeProject.dateModified,
+            downloadCount: curseforgeProject.downloadCount,
+            projectType: projectType,
+            slug: curseforgeProject.slug,
+            description: curseforgeProject.summary,
+            gallery: curseforgeProject.screenshots.map(i => i.url),
+            from: 'curseforge',
+            projectId: String(curseforgeProject.id),
+        }
+        return notation
+    }
 
+    private formatModrinthProjectNotation(modrinthProject: ModrinthProject, projectType: ProjectType): MultiProjectNotation {
+        const notation: MultiProjectNotation = {
+            name: modrinthProject.title,
+            categories: modrinthProject.categories,
+            icon: modrinthProject.icon_url || '',
+            authors: [modrinthProject.author],
+            gameVersions: modrinthProject.game_versions,
+            modLoaders: modrinthProject.loaders,
+            publishDate: modrinthProject.published,
+            updateDate: modrinthProject.updated,
+            projectType: projectType,
+            gallery: modrinthProject.gallery?.map(i => i.raw_url) || [],
+            from: 'modrinth',
+            slug: modrinthProject.slug || '',
+            description: modrinthProject.description,
+            downloadCount: modrinthProject.downloads,
+            projectId: modrinthProject.id
+        }
+        return notation
+    }
+
+    private formatCurseforgeFileNotation(curseforgeFile: CurseforgeFile, projectId: string): MultiFileNotation {
+        const modLoaders: string[] = []
+        const gameVersions: string[] = []
+        for (const gameVersion of curseforgeFile.sortableGameVersions || []) {
+            if (gameVersion.gameVersionPadded === '0' && !gameVersion.gameVersion) {
+                modLoaders.push(gameVersion.gameVersionName.toLowerCase())
+            }
+            else {
+                gameVersions.push(gameVersion.gameVersion || gameVersion.gameVersionName)
+            }
+        }
+
+        const notation: MultiFileNotation = {
+            fileId: curseforgeFile.id,
+            fileDate: curseforgeFile.fileDate,
+            fileName: curseforgeFile.fileName,
+            fileSize: curseforgeFile.fileSizeOnDisk,
+            projectId: projectId,
+            displayName: curseforgeFile.displayName,
+            releaseType: MultipleAPI.curseforgeReleaseTypeMap[curseforgeFile.releaseType],
+            gameVersions: gameVersions,
+            modLoaders: modLoaders,
+            sha1: curseforgeFile.hashes.filter(i => i.algo === 1)?.[0].value || '',
+            url: curseforgeFile.downloadUrl,
+            isServer: curseforgeFile.isServerPack,
+            dependencies: {
+                required: [],
+                optional: [],
+                incomp: [],
+                platform: 'curseforge'
+            }
+
+        }
+
+        for (const dependency of curseforgeFile.dependencies) {
+            const isRequired = dependency.relationType === 3
+            if (isRequired) {
+                notation.dependencies.required.push(String(dependency.modId))
+            }
+            else {
+                notation.dependencies.optional.push(String(dependency.modId))
+            }
+        }
+        return notation
+    }
+
+    private formatModrinthFileNotation(modrinthFile: ModrinthProjectVersion, projectId: string): MultiFileNotation {
+        const mainFile = modrinthFile.files[0]
+        const notation: MultiFileNotation = {
+            fileId: modrinthFile.id,
+            fileDate: modrinthFile.date_published,
+            fileName: mainFile.filename,
+            fileSize: mainFile.size,
+            sha1: mainFile.hashes.sha1,
+            url: mainFile.url,
+            projectId: projectId,
+            displayName: modrinthFile.name,
+            releaseType: modrinthFile.version_type,
+            gameVersions: modrinthFile.game_versions,
+            modLoaders: modrinthFile.loaders,
+            isServer: false,
+            dependencies: {
+                required: [],
+                optional: [],
+                incomp: [],
+                platform: 'modrinth'
+            }
+        }
+        for (const dependency of modrinthFile.dependencies || []) {
+            switch (dependency.dependency_type) {
+                case "required":
+                    notation.dependencies.required.push(dependency.project_id)
+                    break
+                case 'incompatible':
+                    notation.dependencies.incomp?.push(dependency.project_id)
+                    break
+                default:
+                    notation.dependencies.optional?.push(dependency.project_id)
+            }
+        }
+        return notation
+    }
 
     private buildCurseForgeSearchOptions(options: MultiSearchOptions, limit: number, page: number): CurseForgeSearchOptions | null {
 

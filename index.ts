@@ -169,4 +169,5 @@ const mt = new MultipleAPI(CurseforgeAPIKey)
 //     0
 // ).then(console.log)
 
-mt.getProject('jei','modrinth').then(console.log)
+// mt.getProject('238222','curseforge').then(console.log)
+mt.getProjectFiles('jei' ,'modrinth','mod').then(console.log)

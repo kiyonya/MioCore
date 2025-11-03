@@ -97,7 +97,7 @@ export interface CurseforgeFile {
     modLoaderTypes: number[]
     releaseType: number
     fileStatus: number
-    sortedGameVersions: Array<SortableGameVersion>
+    sortableGameVersions: Array<SortableGameVersion>
     isAvailable: boolean
     isServerPack: boolean
     modules: Array<{
@@ -290,10 +290,10 @@ export default class CurseforgeAPI {
      * @returns 
      */
     public async getModOrProjectById(
-        modIds: number | number[],
+        modIds: string | string[],
         pcOnly: boolean = true
     ): Promise<{ data: Array<CurseforgeResourceDetail> }> {
-        const modIdsArray: number[] = typeof modIds === 'number' ? [modIds] : modIds
+        const modIdsArray: number[] = (typeof modIds === 'string' ? [modIds] : modIds).map(i=>Number(i))
         return this.requestWithRetry<{ data: Array<CurseforgeResourceDetail> }>({
             method: 'post',
             url: 'v1/mods',

@@ -78,6 +78,7 @@ export type ModrinthProjectVersion = {
     author_id: string,
     date_published: string,
     downloads: number,
+    version_type:'alpha' | 'beta' |'release'
     files: Array<{
         url: string,
         hashes: Record<"sha512" | 'sha1', string>,
@@ -169,9 +170,7 @@ export default class ModrinthAPI {
         public static async getMultipleProjects(projectIdsOrSlugs: Array<string>): Promise<Array<ModrinthProject>> {
             const url = new URL(`https://api.modrinth.com/v2/projects`)
             const params = new URLSearchParams()
-            projectIdsOrSlugs.forEach(idOrSlug => {
-                params.append('ids', idOrSlug)
-            })
+            params.append('ids',JSON.stringify(projectIdsOrSlugs))
             url.search = params.toString()
             const resp = await axios.get(url.toString(), { responseType: 'json' })
             return resp.data as Array<ModrinthProject>
