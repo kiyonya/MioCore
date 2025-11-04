@@ -38,26 +38,34 @@ export type MultiReleaseType = 'alpha' | 'beta' | 'release'
 export interface MultiFileNotation {
     fileId: string | number,
     projectId: string | number,
+
     displayName: string,
     fileName: string,
     releaseType: MultiReleaseType,
+
     gameVersions: string[],
     modLoaders: string[],
+
     fileSize: number,
     sha1: string,
     curseforgeFingerprint?: number,
     url: string,
     fileDate: string,
     isServer: boolean,
+
+
+
     dependencies: {
         platform: MultiAPIPlatform,
         required: string[],
         optional: string[],
         incomp?: string[]
     }
+
 }
 
 export type MultiAPIPlatform = 'curseforge' | 'modrinth'
+
 
 export interface ModrinthProjectSearchOptionsWithOnlyArrayFactsAcceptance extends ProjectSearchOptions {
     query?: string
