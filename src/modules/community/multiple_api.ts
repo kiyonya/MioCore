@@ -1,3 +1,4 @@
+﻿import fs from "fs"
 
 import HashUtil from "../../utils/hash.ts"
 import { CATEGLORIES } from "./cates.ts"
@@ -225,18 +226,11 @@ export default class MultipleAPI {
                 projectId: String(hit.id)
             }
 
-            if (multiProjectMap.has(hit.slug)) {
-                if (isDuplicateSameSlug) {
-                    continue
-                }
-                else {
-                    multiProjectMap.set(`${hit.slug}+${optionsMd5Hash}`, multiProject)
-                }
-            }
-            else {
+            if (!multiProjectMap.has(hit.slug)) {
                 multiProjectMap.set(hit.slug, multiProject)
             }
-
+            if (isDuplicateSameSlug) { continue }
+            multiProjectMap.set(`${hit.slug}+${optionsMd5Hash}`, multiProject)
         }
 
         let multiProjectNotations = [...multiProjectMap.values()]
@@ -297,8 +291,7 @@ export default class MultipleAPI {
         return results
     }
 
-    public async getProjectFiles(projectId: string, platform: 'curseforge' | 'modrinth', projectType: ProjectType) {
-
+    public async getProjectFiles(projectId: string, platform: 'curseforge' | 'modrinth', projectType: ProjectType): Promise<{ files: MultiFileNotation[], dependenciesMap: Record<string, MultiProjectNotation> }> {
         try {
             if (platform === 'curseforge') {
                 const curseforgeFiles = await this.CurseforgeAPI.getFileOfModID(Number(projectId), { pageSize: 114514 })
@@ -333,7 +326,6 @@ export default class MultipleAPI {
                 const modrinthFileNotations: MultiFileNotation[] = []
 
                 for (const file of modrinthFiles) {
-
                     for (const dependency of file.dependencies || []) {
                         !dependenciesIds.has(dependency.project_id) && dependenciesIds.add(dependency.project_id)
                     }
@@ -353,13 +345,30 @@ export default class MultipleAPI {
                     dependenciesMap: dependencyIdToProjectMap
                 }
             }
+            else {
+                throw new Error(`Unsupported platform: ${platform}`)
+            }     
         } catch (error) {
             console.error(error)
             throw error
         }
-
-
     }
+
+    public async multiMatchByHash(file: string | string[]) {
+        const filesArray = Array.isArray(file) ? file : [file]
+        const computeHashPromise = (filePath:string)=>{
+        return new Promise<{sha1:string,mur:number}>((resolve,reject)=>{
+            Promise.all([HashUtil.sha1(filePath),HashUtil.murmurHashV2(filePath)]).then(data=>{
+                resolve({
+                    sha1:data[0],
+                    mur:data[1]
+                })
+            }).catch( reject )        
+        })}
+        const fileHashes: {sha1:string,mur:number}[] = await Promise.all(filesArray.map(computeHashPromise))
+        const matchedSlugs: string[] = []
+        const matchResultMap: Record<string,undefined | {modrinthResult?:MultiFileNotation,curseforgeResult?:MultiFileNotation}> = {}
+    }// TODO
 
     private formatCurseforgeProjectNotation(curseforgeProject: CurseforgeResourceDetail, projectType: ProjectType): MultiProjectNotation {
         const modLoaders: number[] = []
