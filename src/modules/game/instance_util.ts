@@ -109,17 +109,11 @@ export default abstract class InstanceUtil {
       .map(i => path.join(versionsPath, i))
 
     const limit = pLimit(100)
-
-    let st = Date.now()
-
     const processInstancePromises = instanceDirs.map((dir: string) =>
       limit(() => this.readInstanceOf(dir, minecraftPath, versionIsolation))
     )
     const result = await Promise.all(processInstancePromises)
-    let et = Date.now()
-
-    console.log(result)
-    console.log(et - st)
+    return result
   }
 
   public static async readInstanceOf(

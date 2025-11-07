@@ -1,6 +1,4 @@
-﻿import fs from "fs"
-
-import HashUtil from "../../utils/hash.ts"
+﻿import HashUtil from "../../utils/hash.ts"
 import { CATEGLORIES } from "./cates.ts"
 import CurseforgeAPI, { type CurseforgeFile, type CurseforgeResourceDetail, type CurseForgeSearchOptions } from "./curseforge.ts"
 import { Lang } from "./lang.ts"
@@ -354,6 +352,9 @@ export default class MultipleAPI {
         }
     }
 
+    /**
+     * @author Yorumachi | Kiyuu
+     */
     public async multiMatchByHash(file: string | string[]) {
         const filesArray = Array.isArray(file) ? file : [file]
         const computeHashPromise = (filePath:string)=>{
@@ -366,8 +367,11 @@ export default class MultipleAPI {
             }).catch( reject )        
         })}
         const fileHashes: {sha1:string,mur:number}[] = await Promise.all(filesArray.map(computeHashPromise))
-        const matchedSlugs: string[] = []
         const matchResultMap: Record<string,undefined | {modrinthResult?:MultiFileNotation,curseforgeResult?:MultiFileNotation}> = {}
+
+        
+
+
     }// TODO
 
     private formatCurseforgeProjectNotation(curseforgeProject: CurseforgeResourceDetail, projectType: ProjectType): MultiProjectNotation {
