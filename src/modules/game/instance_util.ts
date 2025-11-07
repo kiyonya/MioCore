@@ -11,6 +11,8 @@ import INI from '../../utils/ini.ts'
 import { type MMLDataJson } from '../../types/index.ts'
 import { existify, getDirSize, getFileNameFromPath } from '../../utils/io.ts'
 import ModActions from './mod_actions.ts'
+import sharp from 'sharp'
+import os from 'os'
 
 export type InstanceInfoStruct = {
   icon: string | null
@@ -30,7 +32,7 @@ export type InstanceInfoStruct = {
   pathMD5: string
   minecraftPath: string
   versionIsolation: boolean
-  version:string
+  version: string
 }
 
 type SaveInfo = {
@@ -83,6 +85,16 @@ type ResourcePackInfo = {
   path: string,
   icon: Buffer | null
 }
+
+export interface ScreenshotInfo {
+  path: string,
+  name: string,
+  size: number,
+  thumbnail?: string,
+  createTime: number,
+  sha1?: string,
+}
+
 
 export default abstract class InstanceUtil {
 
@@ -139,7 +151,7 @@ export default abstract class InstanceUtil {
       canInstallMod: false,
       minecraftPath: minecraftPath,
       versionIsolation: versionIsolation,
-      version:''
+      version: ''
     }
 
     if (
@@ -333,26 +345,69 @@ export default abstract class InstanceUtil {
     return resourcePackInfo
   }
 
-  public static async createBackup(rawPath:string,backupsPath:string){
+  public static async readScreenshotsFromDir(screenshotsDir: string, thumbnailOptions?: { createThumbnail: boolean, tempDir?: string, quality?: number }): Promise<ScreenshotInfo[]> {
+    if (!fs.existsSync(screenshotsDir)) {
+      throw new DirNotFoundException('找不到文件夹', screenshotsDir)
+    }
+    const screenshots = fs.readdirSync(screenshotsDir).filter(i => ['.jpg', '.png'].includes(path.extname(i))).map(i => path.join(screenshotsDir, i))
+    const result: ScreenshotInfo[] = []
+    for (const screenshot of screenshots) {
+      const stats = fs.statSync(screenshot)
 
-    if(fs.existsSync(backupsPath) && !fs.statSync(backupsPath).isDirectory()){
+      const info: ScreenshotInfo = {
+        path: screenshot,
+        createTime: stats.birthtime.getTime(),
+        size: stats.size,
+        name: getFileNameFromPath(screenshot),
+      }
+
+      if (thumbnailOptions && thumbnailOptions.createThumbnail) {
+        const fileSha1 = await HashUtil.sha1(screenshot)
+        let temp = thumbnailOptions.tempDir || path.join(os.tmpdir(), 'kiyuu.miolauncher', 'temp', 'screenshots')
+        existify(temp)
+        info.sha1 = fileSha1
+        const thumbnailFile = path.join(temp, `${fileSha1}.webp`)
+        if (fs.existsSync(thumbnailFile)) {
+          info.thumbnail = thumbnailFile
+        }
+        else {
+          await sharp(screenshot).toFormat('webp', { quality: thumbnailOptions.quality || 10 }).toFile(thumbnailFile)
+          info.thumbnail = thumbnailFile
+        }
+      }
+      result.push(info)
+    }
+    return result
+  }
+
+  public static async readShaderpacksFromDir(shaderpacksDir: string): Promise<string[]> {
+    if (!fs.existsSync(shaderpacksDir)) {
+      throw new DirNotFoundException('找不到文件夹', shaderpacksDir)
+    }
+    const shaderpacks = fs.readdirSync(shaderpacksDir).filter(i => path.extname(i) === '.zip').map(i => path.join(shaderpacksDir, i))
+    return shaderpacks
+  }
+
+  public static async createBackup(rawPath: string, backupsPath: string) {
+
+    if (fs.existsSync(backupsPath) && !fs.statSync(backupsPath).isDirectory()) {
       throw new Error("无法存储到非目录")
     }
-    if(!fs.existsSync(rawPath)){
-      throw new DirNotFoundException("找不到目录",rawPath)
+    if (!fs.existsSync(rawPath)) {
+      throw new DirNotFoundException("找不到目录", rawPath)
     }
 
     existify(backupsPath)
 
     const zip = new AdmZip()
-    await zip.addLocalFolderPromise(rawPath,{})
-    const backupFile = path.join(backupsPath,`${Date.now()}.zip`)
+    await zip.addLocalFolderPromise(rawPath, {})
+    const backupFile = path.join(backupsPath, `${Date.now()}.zip`)
     await zip.writeZipPromise(backupFile)
 
     return backupFile
   }
 
-  protected static getMMLDataFromPCL(instanceDir: string,PCLSetupINI: string): MMLDataJson {
+  protected static getMMLDataFromPCL(instanceDir: string, PCLSetupINI: string): MMLDataJson {
     const PCLSetup = INI.parse(fs.readFileSync(PCLSetupINI, 'utf-8'))
 
     const versionName = path.basename(instanceDir)
