@@ -32,7 +32,9 @@ export type InstanceInfoStruct = {
   pathMD5: string
   minecraftPath: string
   versionIsolation: boolean
-  version: string
+  version: string,
+  moments:string[],
+  pathes:Partial<Record< "mods"|"version"|"screenshots"|"saves",string>>
 }
 
 type SaveInfo = {
@@ -133,6 +135,11 @@ export default abstract class InstanceUtil {
     minecraftPath: string,
     versionIsolation: boolean = true
   ): Promise<InstanceInfoStruct> {
+
+    if(!fs.existsSync(instanceDir) || !fs.existsSync(minecraftPath)){
+      throw new DirNotFoundException('无效文件夹')
+    }
+
     const instanceName = path.basename(instanceDir)
 
     const instanceInfo: InstanceInfoStruct = {
@@ -151,7 +158,11 @@ export default abstract class InstanceUtil {
       canInstallMod: false,
       minecraftPath: minecraftPath,
       versionIsolation: versionIsolation,
-      version: ''
+      version: '',
+      moments:[],
+      pathes:{
+        version:instanceDir
+      },
     }
 
     if (
@@ -196,27 +207,32 @@ export default abstract class InstanceUtil {
     if (fs.existsSync(path.join(instanceDir, 'mods'))) {
       const mods = await this.readModDir(path.join(instanceDir, 'mods'))
       instanceInfo.modsCount = mods.length
+      instanceInfo.pathes.mods = path.join(instanceDir, 'mods')
     }
     //截图统计
     if (fs.existsSync(path.join(instanceDir, 'screenshots'))) {
+      
       //先检查截图个数
       const screenshots = fs
         .readdirSync(path.join(instanceDir, 'screenshots'))
         .filter(i => ['.png', '.jpg', '.jpeg'].includes(path.extname(i)))
-        .map(i => path.join(instanceDir, 'screenshots', i))
+        .map(i => path.join(instanceDir, 'screenshots', i)).reverse()
 
       instanceInfo.screenshotsCount = screenshots.length
       instanceInfo.background = screenshots?.[0] || null
+      instanceInfo.moments = screenshots.slice(0,4)
+      instanceInfo.pathes.screenshots = path.join(instanceDir, 'screenshots')
     }
     //存档统计
     if (fs.existsSync(path.join(instanceDir, 'saves'))) {
       const savesDir = path.join(instanceDir, 'saves')
       const saves = await this.readSavesFromDir(savesDir)
       instanceInfo.saves = saves
+      instanceInfo.pathes.saves = path.join(instanceDir, 'saves')
     }
 
     //
-    if (instanceInfo.modLoader) {
+    if (instanceInfo.modLoader && Object.keys(instanceInfo.modLoader).length) {
       instanceInfo.canInstallMod = true
     }
 
