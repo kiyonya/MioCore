@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const addon = require('./bin/wincpp_addon.node');
+const Myrequire = createRequire(import.meta.url);
+const addon = Myrequire('./bin/wincpp_addon.node');
 
 export default class WinCppAddon {
 

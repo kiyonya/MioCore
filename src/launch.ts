@@ -19,14 +19,48 @@ import WinCppAddon from "./addon/wincpp/index.ts"
 import { compareVersions } from "./utils/v.ts"
 import JSONIO from "./utils/jsonIO.ts"
 import ResourcesStore from "./modules/game/resources_storage.ts"
+import { FileNotFoundException } from "./error.ts"
 
-interface LauncherCreateOptions {
+export interface LauncherCreateOptions {
     minecraftPath: string,
     name: string,
     versionIsolation: boolean
 }
 
+export interface LaunchEvents {
+    'progress': (progress: Record<string, number>) => void;
+    'speed': (speed: number) => void;
+    'stdout': (data: string) => void;
+    'stderr': (error: string) => void;
+    'close': (code: number | null, signal: string | null) => void;
+    'crash': (code: number | null, signal: string | null) => void;
+    'failed': (error: Error) => void
+}
+
+
 export default class ClientLauncher extends EventEmitter {
+
+    on<K extends keyof LaunchEvents>(
+        event: K,
+        listener: LaunchEvents[K]
+    ): this {
+        return super.on(event, listener);
+    }
+
+    once<K extends keyof LaunchEvents>(
+        event: K,
+        listener: LaunchEvents[K]
+    ): this {
+        return super.once(event, listener);
+    }
+
+    emit<K extends keyof LaunchEvents>(
+        event: K,
+        ...args: Parameters<LaunchEvents[K]>
+    ): boolean {
+        return super.emit(event, ...args);
+    }
+
 
     public static DEFAULT_GAME_ARGS = [
         '--username',
@@ -72,18 +106,13 @@ export default class ClientLauncher extends EventEmitter {
     public assetsObjectsPath: string
     public nativesPath: string
     public minecraftJarPath: string
-
     public launchOptions: LaunchOptions
     public name: string
-
     public java?: string
     public isWindows: boolean
-
     public speed: { [K: string]: number }
-
     public gameProcess: ChildProcessWithoutNullStreams | null
-
-    public resourcesStore:ResourcesStore | null
+    public launchStatusEmitInterval: NodeJS.Timeout | null = null
 
     constructor(createOptions: LauncherCreateOptions, launchOptions: LaunchOptions) {
         super()
@@ -106,37 +135,37 @@ export default class ClientLauncher extends EventEmitter {
 
         this.java = launchOptions.java
         this.gameProcess = null
-
-        this.resourcesStore = null
     }
 
     public async launch(authOptions: { username: string, accessToken: string, uuid: string }): Promise<number> {
+
         const versionJsonPath = path.join(this.versionPath, `${this.name}.json`)
         if (!fs.existsSync(versionJsonPath)) {
-            throw new Error('缺失版本json文件')
+            const error = new FileNotFoundException('找不到版本文件',versionJsonPath)
+            this.emit('failed', error)
+            throw error
         }
+
         const versionJson: MinecraftVersionJson = JSON.parse(fs.readFileSync(versionJsonPath, 'utf-8'))
 
-        const loses = await checkFiles({ versionJsonPath: versionJsonPath, libPath: this.libPath, assetsPath: this.assetsPath, minecraftJar: this.minecraftJarPath })
-    
-        //资源池
-        const mmlDataJsonPath = path.join(this.versionPath,'MML','data.json')
-        if(fs.existsSync(mmlDataJsonPath)){
-            const mmlDataJson = JSON.parse(fs.readFileSync(mmlDataJsonPath,'utf-8'))
-            const resourcesStore:{store:string,dirs:string[]} | null = mmlDataJson.resourcesStore || null
-
-            if(resourcesStore && resourcesStore.store){
-                this.resourcesStore = new ResourcesStore({storePath:resourcesStore.store,versionPath:this.versionPath,dirs:resourcesStore.dirs})
+        this.launchStatusEmitInterval = setInterval(() => {
+            this.emit('progress', this.progress)
+            let totalSpeed = 0
+            for (const [key, value] of Object.entries(this.speed)) {
+                totalSpeed += value
             }
+            this.emit('speed', totalSpeed)
+        }, 100);
 
-        }
+        //设置进度
+        if (this.launchOptions.gameFileCheck) { this.progress['checkfile'] = 0 }
 
-        if(this.resourcesStore){
-            console.log("抽取资源库文件")
-            await this.resourcesStore.outStore()
-            console.log("抽取完成")
-        }
+        console.log('检查游戏文件完整性...')
+        console.log(this.launchOptions.gameFileCheck)
 
+        const loses = this.launchOptions.gameFileCheck ? await checkFiles({ versionJsonPath: versionJsonPath, libPath: this.libPath, assetsPath: this.assetsPath, minecraftJar: this.minecraftJarPath }) : []
+
+        this.progress.checkfile = 1
 
         if (!this.java) {
             //检查目录
@@ -161,7 +190,6 @@ export default class ClientLauncher extends EventEmitter {
 
         if (loses.length) {
             this.progress['complete'] = 0
-
             const completeDownloader = new ConcDownloader(50)
 
             for (const lose of loses) {
@@ -197,8 +225,6 @@ export default class ClientLauncher extends EventEmitter {
 
         const { mainClass, jvmArgs, gameArgs } = this.createLaunchCommand(versionJson, authOptions)
 
-        console.log(mainClass)
-
         const cmd = `"${this.java}" ${jvmArgs.join(' ')} ${mainClass} ${gameArgs.join(' ')}\n\npause`
         fs.writeFileSync(path.join(this.versionPath, 'latestlaunch.bat'), cmd, 'utf-8')
 
@@ -220,8 +246,9 @@ export default class ClientLauncher extends EventEmitter {
             throw new Error('游戏进程启动失败')
         }
         else {
+            this.progress = {}
+            this.progress['waitWindow'] = 0
             this.addProcessListener()
-
             const isWindowCreate = new Promise<boolean>((resolve, reject) => {
                 if (!this.gameProcess?.pid) {
                     resolve(false)
@@ -246,16 +273,15 @@ export default class ClientLauncher extends EventEmitter {
                     }, 100);
                 }
             })
-
             await isWindowCreate
+            this.progress['waitWindow'] = 1
 
-
+            this.clearLaunchStatusEmitInterval()
 
             if (this.launchOptions.title) {
                 WinCppAddon.modifyWinTitle(this.gameProcess.pid, this.launchOptions.title)
             }
         }
-
         return this.gameProcess.pid
     }
 
@@ -471,11 +497,11 @@ export default class ClientLauncher extends EventEmitter {
             const launchedTime = Date.now()
 
             json.modify('latestRun', launchedTime).save()
-            json.modify('latestRunUTC',new Date().toUTCString())
+            json.modify('latestRunUTC', new Date().toUTCString())
 
             const updatePlayTime = () => {
                 const playTime = json.get('playTime') || 0
-                const newPlayTime =  Math.floor(playTime + Date.now() - launchedTime)
+                const newPlayTime = Math.floor(playTime + Date.now() - launchedTime)
                 json.modify('playTime', newPlayTime).save()
             }
 
@@ -488,14 +514,14 @@ export default class ClientLauncher extends EventEmitter {
                 this.emit('stderr', stderr.toString())
             })
             this.gameProcess.addListener('close', (code, signal) => {
-                this.emit('close', code, signal)
                 updatePlayTime()
+                this.removeProcessListener()
                 clearInterval(playTimeDumpInterval)
                 if (code !== 0) {
                     this.emit('crash', code, signal)
                 }
-                if(this.resourcesStore){
-                    this.resourcesStore.inStore(true)
+                else {
+                    this.emit('close', code, signal)
                 }
             })
         }
@@ -523,5 +549,20 @@ export default class ClientLauncher extends EventEmitter {
         this.emit('failed', error)
         this.removeProcessListener()
         this.gameProcess = null
+        this.clearLaunchStatusEmitInterval()
+
+    }
+
+    protected clearLaunchStatusEmitInterval() {
+        this.emit('progress', this.progress)
+        let totalSpeed = 0
+        for (const [key, value] of Object.entries(this.speed)) {
+            totalSpeed += value
+        }
+        this.emit('speed', totalSpeed)
+        if (this.launchStatusEmitInterval) {
+            clearInterval(this.launchStatusEmitInterval)
+            this.launchStatusEmitInterval = null
+        }
     }
 }
