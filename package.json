@@ -1,8 +1,8 @@
 {
-  "name": "mmlinstaller",
-  "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
+  "name": "mio-core",
+  "version": "0.5.4",
+  "description": "Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编写，提供超多工具和方法类，包括安装、启动游戏，文件检查，版本扫描，系统交互以及第三方API服务等功能。",
+  "license": "MIT",
   "author": "",
   "type": "module",
   "main": "index.ts",
@@ -10,15 +10,16 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@types/iconv": "^3.0.4",
     "@types/ini": "^4.1.1",
     "adm-zip": "^0.5.16",
     "axios": "^1.12.1",
+    "compare-versions": "^6.1.1",
+    "iconv-lite": "^0.4.24",
     "ini": "^5.0.0",
     "jsdom": "^27.0.0",
     "node-downloader-helper": "^2.1.9",
-    "original-fs": "^1.2.0",
     "p-limit": "^7.1.1",
-    "progress": "^2.0.3",
     "sharp": "^0.34.5",
     "toml": "^3.0.0",
     "tsc": "^2.0.4"
