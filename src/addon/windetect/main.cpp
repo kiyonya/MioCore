@@ -45,7 +45,6 @@ Napi::Boolean HasWindowByPid(const Napi::CallbackInfo& info) {
     return Napi::Boolean::New(env, false);
 }
 
-// 辅助函数：将 UTF-8 字符串转换为宽字符串
 std::wstring Utf8ToWide(const std::string& utf8Str) {
     if (utf8Str.empty()) return L"";
     

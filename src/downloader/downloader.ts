@@ -1,14 +1,14 @@
 import EventEmitter from "events";
-import pLimit from "p-limit";
+import pLimit, { type LimitFunction } from "p-limit";
 
 import DownloadTask from "./downloadtask.ts";
 
 export default class ConcDownloader extends EventEmitter {
   public concurrency: number;
-  public limit: any;
+  public limit: LimitFunction;
   public tasks: DownloadTask[];
   public promiseTasks: Promise<string>[];
-  protected emitInterval:NodeJS.Timeout | null
+  protected emitInterval: NodeJS.Timeout | null
 
   constructor(concurrency: number) {
     super();
@@ -28,23 +28,21 @@ export default class ConcDownloader extends EventEmitter {
   }
 
   public async download() {
-    this.promiseTasks = this.tasks.map((task) =>
-      this.limit(() => task.download().then(()=>this.emit('taskComplete',task)))
-    );
+    this.promiseTasks = this.tasks.map((downloadTask) => this.limit(() => downloadTask.download()))
     this.emitInterval = setInterval(() => {
       this.emitStatus()
     }, 50)
     try {
       await Promise.all(this.promiseTasks);
-    this.emit('progress',1)
-    this.emit('speed',0)
-    this.close()
+      this.emit('progress', 1)
+      this.emit('speed', 0)
+      this.close()
     } catch (err) {
       throw err;
     }
   }
 
-  protected emitStatus(){
+  protected emitStatus() {
     let speed = 0
     let totalProgress = 0
     let completedTasks = 0
@@ -60,18 +58,29 @@ export default class ConcDownloader extends EventEmitter {
     }
     const progress = totalProgress / this.tasks.length
     this.emit('progress', progress)
-    this.emit('tasklast',this.tasks.length - completedTasks)
+    this.emit('tasklast', this.tasks.length - completedTasks)
     this.emit('speed', speed)
   }
 
-  public close(){
+  public close() {
     this.emitInterval && clearInterval(this.emitInterval)
     this.emitInterval = null
-    for(let task of this.tasks){
-        task.close()
+    for (let task of this.tasks) {
+      task.close()
     }
     this.tasks.length = 0
     this.promiseTasks.length = 0
     this.removeAllListeners()
+  }
+
+  public async abort() {
+    this.limit.clearQueue()
+    for (const task of this.tasks) {
+      await task.abort()
+    }
+    this.tasks.length = 0
+    this.promiseTasks.length = 0
+    console.log("下载已暂停")
+    this.close()
   }
 }

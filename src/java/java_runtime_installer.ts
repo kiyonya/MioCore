@@ -1,35 +1,35 @@
-import EventEmitter from "events";
+
 import os from 'os'
 import fs from 'fs'
-import { existify } from "../../utils/io.ts";
+import { existify } from "../utils/io.ts";
 import axios from "axios";
 import path from "path";
-import ConcDownloader from "../../downloader/downloader.ts";
-import DownloadTask from "../../downloader/downloadtask.ts";
+import ConcDownloader from "../downloader/downloader.ts";
+import DownloadTask from "../downloader/downloadtask.ts";
 
-interface JavaRuntimeManifest {
+export interface JavaRuntimeManifest {
     sha1: string;
     size: number;
     url: string;
 }
 
-interface JavaRuntimeVersion {
+export interface JavaRuntimeVersion {
     name: string;
     released: string;
 }
 
-interface JavaRuntimeAvailability {
+export interface JavaRuntimeAvailability {
     group: number;
     progress: number;
 }
 
-interface JavaRuntimeEntry {
+export interface JavaRuntimeEntry {
     availability: JavaRuntimeAvailability;
     manifest: JavaRuntimeManifest;
     version: JavaRuntimeVersion;
 }
 
-interface MinecraftJavaExeEntry {
+export interface MinecraftJavaExeEntry {
     availability: JavaRuntimeAvailability;
     manifest: JavaRuntimeManifest;
     version: {
@@ -38,7 +38,7 @@ interface MinecraftJavaExeEntry {
     };
 }
 
-interface PlatformRuntimes {
+export interface PlatformRuntimes {
     "java-runtime-alpha": JavaRuntimeEntry[];
     "java-runtime-beta": JavaRuntimeEntry[];
     "java-runtime-delta": JavaRuntimeEntry[];
@@ -48,7 +48,7 @@ interface PlatformRuntimes {
     "minecraft-java-exe": MinecraftJavaExeEntry[];
 }
 
-interface MinecraftJavaRuntimes {
+export interface MinecraftJavaRuntimes {
     gamecore: PlatformRuntimes;
     linux: PlatformRuntimes;
     "linux-i386": PlatformRuntimes;
@@ -58,7 +58,8 @@ interface MinecraftJavaRuntimes {
     "windows-x64": PlatformRuntimes;
     "windows-x86": PlatformRuntimes;
 }
-interface DownloadItem {
+
+export interface DownloadItem {
     url: string,
     sha1: string,
     size: string
@@ -80,7 +81,7 @@ export default class JavaRuntimeInstaller extends ConcDownloader {
     public osIndex: OSIndex
 
     constructor(version: RuntimeVersion, javaInstallPath: string, osIndex?: OSIndex) {
-        super(50)
+        super(16)
         this.version = version
         this.osIndex = osIndex || this.getPlatform()
         this.javaInstallPath = existify(javaInstallPath)
@@ -165,5 +166,4 @@ export default class JavaRuntimeInstaller extends ConcDownloader {
         }
         this.close()
     }
-
 }

@@ -18,7 +18,8 @@ export default class DownloadTask extends EventEmitter {
 
   public progress: number;
   public speed: number;
-  public status: "pending" | "complete" | "fail";
+  public status: "pending" | "complete" | "fail" | 'canceled';
+  public canceled: boolean = false
 
   protected downloader: DownloaderHelper | null;
   public downloadTaskOptions: DownloadTaskOptions;
@@ -48,6 +49,10 @@ export default class DownloadTask extends EventEmitter {
   }
 
   public async download(): Promise<string> {
+    if (this.canceled) {
+      this.status === 'canceled'
+      return this.destPath
+    }
     if (this.isFileExist() && !this.override) {
       const isValid = await this.isFileValid();
       if (isValid) {
@@ -119,6 +124,7 @@ export default class DownloadTask extends EventEmitter {
           timeout: this.downloadTaskOptions.timeout,
           fileName: path.basename(this.destPath),
           removeOnFail: true,
+          removeOnStop: true,
           headers: {
             "user-agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
@@ -191,6 +197,20 @@ export default class DownloadTask extends EventEmitter {
 
   public async resume(): Promise<boolean> {
     return (await this.downloader?.resume()) || false;
+  }
+
+  public async abort() {
+    this.canceled = true
+    this.status = 'canceled'
+    await this.downloader?.stop()
+    if (fs.existsSync(this.destPath)) {
+      try {
+        fs.rmSync(this.destPath, { force: true });
+      } catch (error) {
+        console.error("Abort: Failed to remove file", error);
+      }
+    }
+    this.close()
   }
 
   public close() {

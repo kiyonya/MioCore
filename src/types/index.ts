@@ -1,29 +1,40 @@
+export type MinecraftLibClassifiers = Record<string, {
+  path: string;
+  sha1?: string;
+  size?: number;
+  url: string;
+}>
+
+export type MinecraftLibArtifact = {
+  path: string;
+  sha1?: string;
+  size?: number;
+  url: string;
+}
+
+export type MinecraftLibClassifierIndex = Record<string,string>
+
+export type MinecraftLibClassifieExtractGuide = Partial<Record<"exclude" | 'include', string[]>>
+
+export type MinecraftLibPassRule = Array<{
+  os: {
+    name: "osx" | "linux" | "windows";
+  };
+  action?: string;
+}>
+
 export interface MinecraftLib {
   name: string;
   downloads?: {
-    artifact?: {
-      path: string;
-      sha1?: string;
-      size?: number;
-      url: string;
-    };
-    classifiers?: {
-      [key: string]: {
-        path: string;
-        sha1?: string;
-        size?: number;
-        url: string;
-      };
-    };
+    artifact?: MinecraftLibArtifact
+    classifiers?: MinecraftLibClassifiers
   };
-  rules?: {
-    os: {
-      name: "osx" | "linux" | "windows";
-    };
-    action?: string;
-  }[];
+  extract?: MinecraftLibClassifieExtractGuide,
+  natives?: MinecraftLibClassifierIndex,
+  rules?: MinecraftLibPassRule;
   clientreq?: boolean,
-  serverreq?: boolean
+  serverreq?: boolean,
+  url?: string
 }
 
 export interface MinecraftVersionJson {
@@ -51,7 +62,7 @@ export interface MinecraftVersionJson {
     totalSize: number;
     url: string;
   };
-  javaVersion: {
+  javaVersion?: {
     majorVersion: number,
     component: "java-runtime-alpha" | "java-runtime-beta" | "java-runtime-delta" | "java-runtime-gamma" | "java-runtime-gamma-snapshot" | "jre-legacy" | "minecraft-java-exe"
   },
@@ -61,6 +72,10 @@ export interface MinecraftVersionJson {
   minecraftArguments: string,
   assets: number,
   mainClass: string,
+}
+
+export interface MinecraftAssetsJson {
+  objects: Record<string, { hash: string, size: number }>
 }
 
 export type LaunchOptions = {
@@ -143,12 +158,12 @@ export type ModrinthIndexJson = {
 }
 
 export type MMLDataJson = {
-  playTime?:number,
-  latestRun?:number,
-  version:string,
-  modLoader?:Record<string,string> | null,
-  name?:string,
-  mmlVersion?:number,
-  installTime:number,
-  installTimeUTC:string
+  playTime?: number,
+  latestRun?: number,
+  version: string,
+  modLoader?: Record<string, string> | null,
+  name?: string,
+  mmlVersion?: number,
+  installTime: number,
+  installTimeUTC: string
 }

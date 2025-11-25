@@ -1,7 +1,7 @@
 {
   "targets": [
     {
-      "target_name": "wincpp_addon",
+      "target_name": "windetect_windows_x86",
       "cflags!": [ "-fno-exceptions" ],
       "cflags_cc!": [ "-fno-exceptions" ],
       "sources": [ "main.cpp" ],
