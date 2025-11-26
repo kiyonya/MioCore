@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { existify, isMavenLikePath, mavenToPath } from "../../utils/io.ts";
-import { checkOSRules } from "../../utils/os.ts";
+import { existify, isMavenLikePath, mavenToPath } from "../utils/io.ts";
+import { checkOSRules } from "../utils/os.ts";
 
-import { type DownloadTaskItem } from "../../types/index.ts";
+import { type DownloadTaskItem } from "../types/index.ts";
 
 interface NeoForgeGatherOptions {
     neoforgeWorkDir: string;

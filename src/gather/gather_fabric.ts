@@ -1,8 +1,8 @@
 import axios from "axios";
 import EventEmitter from "events";
-import { mavenToPath } from "../../utils/io.ts";
+import { mavenToPath } from "../utils/io.ts";
 import path from "path";
-import { type DownloadTaskItem } from "../../types/index.ts";
+import { type DownloadTaskItem } from "../types/index.ts";
 
 interface FabricGatherOptions {
     libPath: string,

@@ -2,9 +2,9 @@ import EventEmitter from "events";
 import path from "path";
 import fs from 'fs'
 import os, { version } from 'os'
-import { mavenToPath } from "../../utils/io.ts";
+import { mavenToPath } from "../utils/io.ts";
 import admZip from "adm-zip";
-import { spawnCommand } from "../../utils/cmd.ts";
+import { spawnCommand } from "../utils/cmd.ts";
 
 interface NeoForgeInstallerOptions {
     neoforgeWorkDir: string

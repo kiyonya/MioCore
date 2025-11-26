@@ -1,5 +1,5 @@
 import axios from "axios"
-import { mavenToPath } from "../../utils/io.ts"
+import { mavenToPath } from "../utils/io.ts"
 import path from "path"
 
 type FabricLibIndex = {

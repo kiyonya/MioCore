@@ -5,8 +5,8 @@ import path from 'path'
 import os from 'os'
 import axios from "axios";
 import { JSDOM } from 'jsdom'
-import DownloadTask from "../../downloader/downloadtask.ts";
-import { existify } from "../../utils/io.ts";
+import DownloadTask from "../downloader/downloadtask.ts";
+import { existify } from "../utils/io.ts";
 
 type JavaBinExEPath = string 
 

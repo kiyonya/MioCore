@@ -1,5 +1,5 @@
 import AdmZip from "adm-zip";
-import { existify, mavenToPath, objectToManifest } from "../../../utils/io.ts";
+import { existify, mavenToPath, objectToManifest } from "../../utils/io.ts";
 import axios from "axios";
 import path from "path";
 import fs from 'fs'

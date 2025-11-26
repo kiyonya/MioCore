@@ -1,17 +1,19 @@
 import EventEmitter from "events";
 import path from "path";
 import fs from 'fs'
-import { mavenToPath } from "../../../utils/io.ts";
-import AdmZip from "adm-zip";
-import { spawnCommand } from "../../../utils/cmd.ts";
-import os from 'os'
+import os, { version } from 'os'
+import { mavenToPath } from "../utils/io.ts";
+import admZip from "adm-zip";
+import { spawnCommand } from "../utils/cmd.ts";
+
 interface ForgeInstallerOptions {
     forgeWorkDir: string
     libPath: string
-    serverPath: string
-    serverJarPath: string
+    minecraftJarPath: string
     java: string
+    side: 'client'
 }
+
 interface InstallProfileForge {
     version: string,
     minecraft: string,
@@ -37,43 +39,41 @@ interface InstallProfileForge {
         }
     }[]
 }
+
 interface JVMPatchCommand {
     args: string[],
     mainClass: string,
     cp: string[]
 }
 
-export default class ForgeServerInstaller extends EventEmitter {
+
+export default class ForgeInstaller extends EventEmitter {
 
     public forgeWorkDir: string
     public libPath: string
-    public serverPath: string
-    public serverJarPath: string
+    public minecraftJarPath: string
     public java: string
-    public side: 'server'
+    public side: 'client'
 
     constructor(options: ForgeInstallerOptions) {
         super()
         this.forgeWorkDir = options.forgeWorkDir
         this.libPath = options.libPath
-        this.serverPath = options.serverPath
-        this.serverJarPath = options.serverJarPath
+        this.minecraftJarPath = options.minecraftJarPath
         this.java = options.java
-        this.side = 'server'
+        this.side = options.side
     }
 
-
     public async install() {
-
         const forgeInstallProfileJsonPath = path.join(this.forgeWorkDir, 'unpack', 'install_profile.json')
-        const forgeVersionJsonPath = path.join(this.forgeWorkDir, 'unpack', 'version.json')
+        const forgeVersionJsonPath = path.join(this.forgeWorkDir,'unpack','version.json')
         if (!fs.existsSync(forgeInstallProfileJsonPath) || !fs.existsSync(forgeVersionJsonPath)) {
             throw new Error('No Install Profile JSON or version JSON found in unpack dir')
         }
-
         const installProfile: InstallProfileForge = JSON.parse(fs.readFileSync(forgeInstallProfileJsonPath, 'utf-8'))
-
+        //构建数组映射表
         const argReplacementMap: Map<string, string> = new Map()
+        //遍历data 找到对应的值建立映射值
         for (const [k, v] of Object.entries(installProfile.data)) {
             const sideV = v[this.side]
             if (sideV.startsWith("[") && sideV.endsWith("]")) {
@@ -82,6 +82,7 @@ export default class ForgeServerInstaller extends EventEmitter {
                 argReplacementMap.set(k, file)
             }
             else if (k === 'BINPATCH') {
+                //处理补丁 重定向位置
                 const patchLZMA = path.join(this.forgeWorkDir, 'unpack', sideV)
                 argReplacementMap.set(k, patchLZMA)
             }
@@ -89,11 +90,7 @@ export default class ForgeServerInstaller extends EventEmitter {
                 argReplacementMap.set(k, sideV)
             }
         }
-        argReplacementMap.set('MINECRAFT_JAR', this.serverJarPath)
-        argReplacementMap.set('ROOT', this.serverPath)
-        argReplacementMap.set('ServerJarPath', this.serverJarPath)
-        argReplacementMap.set('LIBRARY_DIR', this.libPath)
-        argReplacementMap.set('INSTALLER',path.join(this.forgeWorkDir,'installer.jar'))
+        argReplacementMap.set('MINECRAFT_JAR', this.minecraftJarPath)
 
         //接下来获得需要进行的Processor
         const requiredProcessor = installProfile.processors.filter(processor => {
@@ -102,6 +99,7 @@ export default class ForgeServerInstaller extends EventEmitter {
             return false
         })
 
+        //接下来构造每个启动命令
         const jvmCommands: JVMPatchCommand[] = []
         for (const processor of requiredProcessor) {
 
@@ -121,13 +119,11 @@ export default class ForgeServerInstaller extends EventEmitter {
                 const arg = processor.args[i]
                 if (typeof arg === 'string') {
 
-                    if (arg.includes("{") && arg.includes("}")) {
-                        const replacedArg = arg.replace(/\{([^}]+)\}/g, (match, key) => {
-                            const value = argReplacementMap.get(key);
-                            return value !== undefined ? value : match;
-                        });
-                        if (replacedArg !== arg) {
-                            processor.args[i] = replacedArg.replaceAll('\\','/');
+                    if (arg.startsWith("{") && arg.endsWith("}")) {
+                        const indexString: string = arg.replace(/^{(.*)}$/, '$1')
+                        const value = argReplacementMap.get(indexString)
+                        if (value) {
+                            processor.args[i] = value
                         }
                     }
                     else if (arg.startsWith("[") && arg.endsWith("]")) {
@@ -146,30 +142,36 @@ export default class ForgeServerInstaller extends EventEmitter {
 
         const isWindows = os.platform() === 'win32'
         //执行
-        console.log(jvmCommands)
-        for (let i = 0; i < jvmCommands.length; i++) {
+        for(let i = 0;i < jvmCommands.length;i++){
             const command = jvmCommands[i]
-            const stdout = await spawnCommand(this.java, [
+            const stdout = await spawnCommand(this.java,[
                 "-cp",
                 command.cp.join(isWindows ? ";" : ":"),
                 command.mainClass,
                 ...command.args
-            ], true)
-            this.emit('progress', (i + 1) / jvmCommands.length)
+            ],false)
+            this.emit('progress',(i+1) / jvmCommands.length)
         }
         //完成
-        this.emit('progress', 1)
+        this.emit('progress',1)
         this.removeAllListeners()
-
-        fs.rmSync(this.forgeWorkDir,{recursive:true,force:true})
-
+        //生成版本JSON
+        const versionJsonFragment = JSON.parse(fs.readFileSync(forgeVersionJsonPath,'utf-8'))
+        //清理文件
+        try {
+            fs.rmSync(this.forgeWorkDir,{recursive:true,force:true})
+        } catch (error) {
+            console.warn('remove fail' + error)
+        }
+        return versionJsonFragment
     }
 
     protected getMainClassFromJar(jarFile: string): string {
         if (!fs.existsSync(jarFile)) {
             throw new Error('No Jar File Found:on finding mainclass')
         }
-        const jar = new AdmZip(jarFile)
+
+        const jar = new admZip(jarFile)
         const manifestEntry = jar.getEntry('META-INF/MANIFEST.MF')
 
         if (!manifestEntry) {
@@ -185,4 +187,6 @@ export default class ForgeServerInstaller extends EventEmitter {
         const mainClass = mainClassLine.split(':')[1].trim()
         return mainClass
     }
+
+    
 }

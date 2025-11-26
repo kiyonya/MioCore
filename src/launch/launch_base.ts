@@ -13,13 +13,14 @@ import JSONIO from "../utils/jsonIO.ts";
 import GameCompletenessChecker from "../game_opration/complete_checker.ts";
 import ConcDownloader from "../downloader/downloader.ts";
 import DownloadTask from "../downloader/downloadtask.ts";
-import Mirror from "../modules/mirror/mirror.ts";
+import Mirror from "../mirror/mirror.ts";
 import JavaRuntimeInstaller from "../modules/installer/jrt_installer.ts";
 import OptionsIO from "../modules/game/optionsIO.ts";
 import JavaVersionDetector, { type JavaVersionInfo } from "../java/java_version_detect.ts";
 import { compare } from "compare-versions";
 import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
 import { distributionHeap } from "../memory/memory_distribution.ts";
+import NameMap from "../format/namemap.ts";
 
 
 export interface LaunchEvents {
@@ -413,7 +414,7 @@ export default abstract class LaunchBase extends EventEmitter {
             else {
                 //在本地安装java
                 const runtimeVersion = this.versionJson.javaVersion?.component || 'jre-legacy'
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, this.OSINFO.javaType || undefined)
+                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform,this.OSINFO.arch))
                 this.activeJavaRuntimeInstaller = javaRuntimeInstaller
                 javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
                 javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
@@ -636,12 +637,12 @@ export default abstract class LaunchBase extends EventEmitter {
     protected extractNativeFile(classifiers: MinecraftLibClassifiers, classifiersIndex: MinecraftLibClassifierIndex, extract: MinecraftLibClassifieExtractGuide): string {
 
 
-        let osIndexKey: string = this.OSINFO.nativePlatform || this.OSINFO.platform
+        let osIndexKey = NameMap.getMojangNativePlatform(this.OSINFO.platform)
         let indexclassifierKey: string | null = classifiersIndex[osIndexKey] || null
 
         // only when string , available to index
         if (indexclassifierKey && indexclassifierKey.includes('${arch}')) {
-            const mappedArch = this.OSINFO.is64Bit ? '64' : '32'
+            const mappedArch = NameMap.getArchBit(this.OSINFO.arch)
             indexclassifierKey = indexclassifierKey.replaceAll('${arch}', mappedArch)
         }
 

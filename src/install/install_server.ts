@@ -2,21 +2,24 @@ import axios from "axios";
 import EventEmitter from "events";
 import fs from 'fs'
 import path from "path";
-import DownloadTask from "./downloader/downloadtask.ts";
+import DownloadTask from "../downloader/downloadtask.ts";
 import AdmZip from "adm-zip";
-import { existify } from "./utils/io.ts";
-import GetForgeInstaller from "./modules/jars/forge_installer.ts";
-import GetNeoForgeInstaller from "./modules/jars/neoforge_installer.ts";
-import FabricGather from "./modules/gather/gather_fabric.ts";
-import ConcDownloader from "./downloader/downloader.ts";
-import FabricServerInstaller from "./modules/installer/server/fabric_server_installer.ts";
-import ForgeGather from "./modules/gather/gather_forge.ts";
-import ForgeServerInstaller from "./modules/installer/server/forge_server_installer.ts";
-import NeoNeoForgeGather from "./modules/gather/gather_neoforge.ts";
-import NeoForgeServerInstaller from "./modules/installer/server/neoforge_server_installer.ts";
-import JavaRuntimeInstaller from "./modules/installer/jrt_installer.ts";
+import { existify } from "../utils/io.ts";
+import GetForgeInstaller from "../jars/forge_installer.ts";
+import GetNeoForgeInstaller from "../jars/neoforge_installer.ts";
+import FabricGather from "../gather/gather_fabric.ts";
+import ConcDownloader from "../downloader/downloader.ts";
+import FabricServerInstaller from "../installer/server/fabric_server_installer.ts";
+import ForgeGather from "../gather/gather_forge.ts";
+import ForgeServerInstaller from "../installer/server/forge_server_installer.ts";
+import NeoNeoForgeGather from "../gather/gather_neoforge.ts";
+import NeoForgeServerInstaller from "../installer/server/neoforge_server_installer.ts";
+import JavaRuntimeInstaller from "../java/java_runtime_installer.ts";
 
-import {type MinecraftVersionJson,type MinecraftLib,type DownloadTaskItem} from './types/index.ts'
+import { type MinecraftVersionJson, type DownloadTaskItem } from '../types/index.ts'
+import { getSystemInfo } from "../utils/os.ts";
+import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
+import NameMap from "../format/namemap.ts";
 
 interface MinecraftServerInstallerOptions {
     java?: string,
@@ -24,20 +27,17 @@ interface MinecraftServerInstallerOptions {
     name: string,
     version: string,
     modLoader?:
-    | { [K in "forge" | "fabric" | "neoforge" | "quilt" | "fabricapi"]?: string }
+    Partial<Record<"forge" | "fabric" | "neoforge" | "quilt" | 'fabricapi', string>> | null,
 }
 
-
-
 export default class MinecraftServerInstaller extends EventEmitter {
-
-    public java?: string
+    public OSINFO = getSystemInfo()
+    public javaExecutablePath?: string
     public serverPath: string
     public name: string
     public version: string
     modLoader?:
-        | { [K in "forge" | "fabric" | "neoforge" | "quilt" | "fabricapi"]?: string }
-
+       Partial<Record<"forge" | "fabric" | "neoforge" | "quilt" | 'fabricapi', string>> | null = null
     public libPath: string
     public versionPath: string
     public side: 'server'
@@ -46,7 +46,7 @@ export default class MinecraftServerInstaller extends EventEmitter {
     constructor(options: MinecraftServerInstallerOptions) {
         console.log(options)
         super()
-        this.java = options.java
+        this.javaExecutablePath = options.java
         this.serverPath = options.serverPath
         this.version = options.version
         this.name = options.name
@@ -68,20 +68,12 @@ export default class MinecraftServerInstaller extends EventEmitter {
         //获取版本JSON
         const versionJson = await this.getVersionJson(this.version)
 
-        if (!this.java) {
-            //检查目录
-            const requiredJavaVersion = versionJson.javaVersion.majorVersion
-            const javaEXEInMinecraftDir = path.join(this.serverPath, 'java', String(requiredJavaVersion), 'bin', 'java.exe')
-            if (fs.existsSync(javaEXEInMinecraftDir)) {
-                this.java = javaEXEInMinecraftDir
-            }
-            else {
-                //下载
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(versionJson.javaVersion.component, path.join(this.serverPath, 'java', String(requiredJavaVersion)))
-                const javaEXE = await javaRuntimeInstaller.install()
-                this.java = javaEXE
-            }
+        //检查Java
+        const javaExecutablePathAvailable = await this.resolveJavaRuntime(versionJson)
+        if (!javaExecutablePathAvailable) {
+            throw new Error("没有可用的JAVA")
         }
+        this.javaExecutablePath = javaExecutablePathAvailable
 
         //下载服务端
         const downloadAndUnpackServerPromise: Promise<string> = new Promise((resolve, reject) => {
@@ -263,7 +255,7 @@ export default class MinecraftServerInstaller extends EventEmitter {
             else if (key === 'forge' && this.modLoader?.forge) {
                 const forgeServerInstaller = new ForgeServerInstaller({
                     forgeWorkDir: path.join(this.serverPath, '.forge'),
-                    java: this.java as string,
+                    java: this.javaExecutablePath as string,
                     libPath: this.libPath,
                     serverPath: this.serverPath,
                     serverJarPath: path.join(this.serverPath, 'server.jar')
@@ -275,7 +267,7 @@ export default class MinecraftServerInstaller extends EventEmitter {
 
                 const neoforgeServerInstaller = new NeoForgeServerInstaller({
                     neoforgeWorkDir: path.join(this.serverPath, '.neoforge'),
-                    java: this.java as string,
+                    java: this.javaExecutablePath as string,
                     libPath: this.libPath,
                     serverPath: this.serverPath,
                     serverJarPath: path.join(this.serverPath, 'server.jar')
@@ -288,5 +280,43 @@ export default class MinecraftServerInstaller extends EventEmitter {
         for (const installer of modLoaderInstallers) {
             await installer.install()
         }
+    }
+
+    private async resolveJavaRuntime(versionJson: MinecraftVersionJson): Promise<string | null> {
+
+        let requiredJavaRuntimeVersion = String(versionJson.javaVersion?.majorVersion) || '8'
+        let requiredJVMVersion = requiredJavaRuntimeVersion === "8" ? '1.8.0' : requiredJavaRuntimeVersion
+
+        const localJavaExecutablePath = path.join(this.serverPath, 'java', `${this.OSINFO.platform}-${this.OSINFO.arch}`, String(requiredJavaRuntimeVersion))
+
+        let javaExecutablePath: string | null = null
+
+        if (this.javaExecutablePath) {
+            const isUserSelectedJavaAvailable = await JavaRuntimeResolver.isJavaValid(this.javaExecutablePath, requiredJVMVersion)
+            if (isUserSelectedJavaAvailable) {
+                javaExecutablePath = this.javaExecutablePath
+            }
+        } else {
+            //查找或者安装java了
+            const localJavaPath: string = this.OSINFO.platform === 'win32' ? path.join(localJavaExecutablePath, 'bin', 'java.exe') : localJavaExecutablePath
+            const isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+            if (isLocalJavaAvailable) {
+                //本地可用就用本地的了
+                javaExecutablePath = localJavaPath
+            }
+            else {
+                //在本地安装java
+                const runtimeVersion = versionJson.javaVersion?.component || 'jre-legacy'
+                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
+                const installedJavaHome: string = await javaRuntimeInstaller.install()
+                javaRuntimeInstaller.removeAllListeners()
+                //检查安装完成的java是否可以用
+                const isInstalledJavaExecutablePathAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+                if (isInstalledJavaExecutablePathAvailable) {
+                    javaExecutablePath = localJavaPath
+                }
+            }
+        }
+        return javaExecutablePath
     }
 }

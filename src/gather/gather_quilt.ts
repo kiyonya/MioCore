@@ -1,9 +1,9 @@
 //https://meta.quiltmc.org/v3/versions/loader/1.20.1/0.17.10/profile/json
 
 import path from "path"
-import { mavenToPath } from "../../utils/io.ts"
+import { mavenToPath } from "../utils/io.ts"
 import axios from "axios"
-import { type DownloadTaskItem } from "../../types/index.ts";
+import { type DownloadTaskItem } from "../types/index.ts";
 
 interface GatherQuiltOptions {
     libPath:string,

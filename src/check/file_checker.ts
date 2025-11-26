@@ -1,9 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { checkOSRules } from '../../utils/os.ts';
-import { existify, mavenToPath } from '../../utils/io.ts';
-import Request from '../../utils/request.ts';
-import HashUtil from '../../utils/hash.ts';
+import { checkOSRules } from '../utils/os.ts';
+import { existify, mavenToPath } from '../utils/io.ts';
+import Request from '../utils/request.ts';
+import HashUtil from '../utils/hash.ts';
 
 type MinecraftAssetsObject = {
     hash: string;

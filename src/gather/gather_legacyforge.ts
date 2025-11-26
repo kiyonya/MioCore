@@ -1,7 +1,7 @@
 import path from "path"
 import fs from 'fs'
-import { existify, mavenToPath } from "../../utils/io.ts"
-import { type DownloadTaskItem } from "../../types/index.ts";
+import { existify, mavenToPath } from "../utils/io.ts"
+import { type DownloadTaskItem } from "../types/index.ts";
 
 interface LegacyForgeLib {
     name: string

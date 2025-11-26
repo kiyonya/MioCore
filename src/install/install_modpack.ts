@@ -1,14 +1,14 @@
 
 import AdmZip from "adm-zip";
-import { existify } from "./utils/io.ts";
-import MinecraftClientInstaller from "./client.ts";
+import { existify } from "../utils/io.ts";
+import MinecraftClientInstaller from "./install_client.ts";
 import axios from "axios";
-import ConcDownloader from "./downloader/downloader.ts";
-import DownloadTask from "./downloader/downloadtask.ts";
+import ConcDownloader from "../downloader/downloader.ts";
+import DownloadTask from "../downloader/downloadtask.ts";
 import path from "path";
 import EventEmitter from "events";
 import crypto from 'crypto'
-import { type CurseForgeManifestJson, type ModrinthIndexJson } from './types/index.ts'
+import { type CurseForgeManifestJson, type ModrinthIndexJson } from '../types/index.ts'
 
 interface ModPackInstallerOptions {
     name: string,
@@ -23,8 +23,8 @@ export default class ModpackInstaller extends EventEmitter {
     public minecraftPath: string
     public java?: string
     public name?: string
-    public progress: { [key: string]: number }
-    public speed: { [key: string]: number }
+    public progress: Record<string, number> = {}
+    public speed: Record<string, number> = {}
 
     protected statsEmitter: NodeJS.Timeout | null
 
@@ -87,7 +87,7 @@ export default class ModpackInstaller extends EventEmitter {
             })
 
             installer.on('speed', (speed) => {
-                this.speed['installer'] = speed
+                this.speed = { ...this.speed, ...speed }
             })
 
             installPromises.push(installer.install())
@@ -116,7 +116,7 @@ export default class ModpackInstaller extends EventEmitter {
                 this.progress = { ...this.progress, ...progress }
             })
             installer.on('speed', (speed) => {
-                this.speed['installer'] = speed
+                this.speed = { ...this.speed, ...speed }
             })
             downloader.on('progress', (progress) => {
                 this.progress.downloadMods = progress
@@ -135,11 +135,10 @@ export default class ModpackInstaller extends EventEmitter {
     }
 
     public async installFromURL(url: string) {
-        const tempUUID = crypto.randomUUID()
         const modpackTempZip = path.join(this.versionPath, `${this.name}.zip`)
         const modpackDownloadTask = new DownloadTask([url], modpackTempZip)
 
-        modpackDownloadTask.on('speed', (speed: number) => { this.speed['downloadModpack'] = speed })
+        modpackDownloadTask.on('speed', (speed: number) => { this.speed['download-modpack'] = speed })
         modpackDownloadTask.on('progress', (progress: number) => {
             this.progress.downloadModpack = progress
         })
@@ -148,7 +147,7 @@ export default class ModpackInstaller extends EventEmitter {
 
         console.log('整合包下载完成')
 
-        this.speed['downloadModpack'] = 0
+        this.speed['download-modpack'] = 0
         this.progress.downloadModpack = 1
 
         if (modpackFile) {
@@ -200,7 +199,7 @@ export default class ModpackInstaller extends EventEmitter {
     }
 
     protected createModrinthModpackClientInstaller(indexJson: ModrinthIndexJson): MinecraftClientInstaller {
-        const modLoaderMiaoFormat: { [key: string]: string } = {}
+        const modLoaderMiaoFormat: Record<string, string> = {}
         for (const [key, value] of Object.entries(indexJson.dependencies)) {
             if (key === 'forge') { modLoaderMiaoFormat['forge'] = value }
             else if (key === 'fabric-loader') { modLoaderMiaoFormat['fabric'] = value }
@@ -269,7 +268,8 @@ export default class ModpackInstaller extends EventEmitter {
                                 headers: {
                                     'Host': 'api.curseforge.com',
                                     'Content-Type': 'application/json',
-                                    'x-api-key': '$2a$10$GXzIANYhdqiVSvSZcnVqEuiG8W9T3DFjeM04q6ul8D1yLSwzCyd7O',
+                                    //API KEY
+                                    'x-api-key': '***',
                                     'Referer': 'api.kiyuu.cn',
                                 },
                                 timeout: 10000

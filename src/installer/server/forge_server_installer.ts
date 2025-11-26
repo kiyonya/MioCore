@@ -1,18 +1,18 @@
 import EventEmitter from "events";
 import path from "path";
 import fs from 'fs'
-import { mavenToPath } from "../../../utils/io.ts";
+import { mavenToPath } from "../../utils/io.ts";
 import AdmZip from "adm-zip";
-import { spawnCommand } from "../../../utils/cmd.ts";
+import { spawnCommand } from "../../utils/cmd.ts";
 import os from 'os'
-interface NeoForgeInstallerOptions {
-    neoforgeWorkDir: string
+interface ForgeInstallerOptions {
+    forgeWorkDir: string
     libPath: string
     serverPath: string
     serverJarPath: string
     java: string
 }
-interface InstallProfileNeoForge {
+interface InstallProfileForge {
     version: string,
     minecraft: string,
     serverJarPath: string,
@@ -43,18 +43,18 @@ interface JVMPatchCommand {
     cp: string[]
 }
 
-export default class NeoForgeServerInstaller extends EventEmitter {
+export default class ForgeServerInstaller extends EventEmitter {
 
-    public neoforgeWorkDir: string
+    public forgeWorkDir: string
     public libPath: string
     public serverPath: string
     public serverJarPath: string
     public java: string
     public side: 'server'
 
-    constructor(options: NeoForgeInstallerOptions) {
+    constructor(options: ForgeInstallerOptions) {
         super()
-        this.neoforgeWorkDir = options.neoforgeWorkDir
+        this.forgeWorkDir = options.forgeWorkDir
         this.libPath = options.libPath
         this.serverPath = options.serverPath
         this.serverJarPath = options.serverJarPath
@@ -62,28 +62,27 @@ export default class NeoForgeServerInstaller extends EventEmitter {
         this.side = 'server'
     }
 
+
     public async install() {
 
-        const neoforgeInstallProfileJsonPath = path.join(this.neoforgeWorkDir, 'unpack', 'install_profile.json')
-        const neoforgeVersionJsonPath = path.join(this.neoforgeWorkDir, 'unpack', 'version.json')
-        if (!fs.existsSync(neoforgeInstallProfileJsonPath) || !fs.existsSync(neoforgeVersionJsonPath)) {
+        const forgeInstallProfileJsonPath = path.join(this.forgeWorkDir, 'unpack', 'install_profile.json')
+        const forgeVersionJsonPath = path.join(this.forgeWorkDir, 'unpack', 'version.json')
+        if (!fs.existsSync(forgeInstallProfileJsonPath) || !fs.existsSync(forgeVersionJsonPath)) {
             throw new Error('No Install Profile JSON or version JSON found in unpack dir')
         }
 
-        const installProfile: InstallProfileNeoForge = JSON.parse(fs.readFileSync(neoforgeInstallProfileJsonPath, 'utf-8'))
+        const installProfile: InstallProfileForge = JSON.parse(fs.readFileSync(forgeInstallProfileJsonPath, 'utf-8'))
 
-
-        1
         const argReplacementMap: Map<string, string> = new Map()
         for (const [k, v] of Object.entries(installProfile.data)) {
             const sideV = v[this.side]
             if (sideV.startsWith("[") && sideV.endsWith("]")) {
-                //neoforge使用[]表示这是一个maven路径
+                //forge使用[]表示这是一个maven路径
                 const file = path.join(this.libPath, mavenToPath(sideV))
                 argReplacementMap.set(k, file)
             }
             else if (k === 'BINPATCH') {
-                const patchLZMA = path.join(this.neoforgeWorkDir, 'unpack', sideV)
+                const patchLZMA = path.join(this.forgeWorkDir, 'unpack', sideV)
                 argReplacementMap.set(k, patchLZMA)
             }
             else {
@@ -94,7 +93,7 @@ export default class NeoForgeServerInstaller extends EventEmitter {
         argReplacementMap.set('ROOT', this.serverPath)
         argReplacementMap.set('ServerJarPath', this.serverJarPath)
         argReplacementMap.set('LIBRARY_DIR', this.libPath)
-        argReplacementMap.set('INSTALLER',path.join(this.neoforgeWorkDir,'installer.jar'))
+        argReplacementMap.set('INSTALLER',path.join(this.forgeWorkDir,'installer.jar'))
 
         //接下来获得需要进行的Processor
         const requiredProcessor = installProfile.processors.filter(processor => {
@@ -102,8 +101,6 @@ export default class NeoForgeServerInstaller extends EventEmitter {
             if ((!processor.sides || processor.sides.includes(this.side))) { return true }
             return false
         })
-
-        console.log(requiredProcessor)
 
         const jvmCommands: JVMPatchCommand[] = []
         for (const processor of requiredProcessor) {
@@ -163,6 +160,8 @@ export default class NeoForgeServerInstaller extends EventEmitter {
         //完成
         this.emit('progress', 1)
         this.removeAllListeners()
+
+        fs.rmSync(this.forgeWorkDir,{recursive:true,force:true})
 
     }
 

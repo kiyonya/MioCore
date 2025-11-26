@@ -1,11 +1,11 @@
 import EventEmitter from "events";
 import os from 'os'
 import fs from 'fs'
-import { existify } from "../../utils/io.ts";
+import { existify } from "../utils/io.ts";
 import axios from "axios";
 import path from "path";
-import ConcDownloader from "../../downloader/downloader.ts";
-import DownloadTask from "../../downloader/downloadtask.ts";
+import ConcDownloader from "../downloader/downloader.ts";
+import DownloadTask from "../downloader/downloadtask.ts";
 
 interface JavaRuntimeManifest {
     sha1: string;
