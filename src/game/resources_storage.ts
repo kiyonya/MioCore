@@ -2,8 +2,8 @@ import path from "path";
 import fs from 'fs'
 import pLimit from "p-limit";
 
-import HashUtil from "../../utils/hash.ts";
-import { existify } from "../../utils/io.ts";
+import HashUtil from "../utils/hash.ts";
+import { existify } from "../utils/io.ts";
 
 interface ResourcesStoreOptions {
     storePath: string

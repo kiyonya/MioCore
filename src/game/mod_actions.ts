@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-import { FileNotFoundException } from '../../error.ts'
+import { FileNotFoundException } from '../error.ts'
 
 type ModFileStats = {
     isActive: boolean,

@@ -6,7 +6,7 @@ import { checkOSRules } from "../utils/os.ts"
 import Request from "../utils/request.ts"
 import HashUtil from "../utils/hash.ts"
 import pLimit from "p-limit"
-import InstanceUtil from "../modules/game/instance_util.ts"
+import InstanceUtil from "../game/instance_util.ts"
 import EventEmitter from "events"
 
 export interface GameCompletenessCheckerOptions {

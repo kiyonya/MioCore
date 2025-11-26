@@ -103,7 +103,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
 
         this.libPath = existify(options.minecraftPath, "libraries");
 
-        this.nativesPath = existify(this.versionPath, `${options.name}-natives`);
+        this.nativesPath = existify(this.versionPath, `${this.name}-natives-${this.OSINFO.platform}`);
         this.versionJsonPath = path.join(this.versionPath, `${options.name}.json`);
 
         this.modLoader = options.modLoader;

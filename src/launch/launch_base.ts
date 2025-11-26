@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 import path from "path"
-import os from 'os'
+import os, { platform } from 'os'
 import fs from 'fs'
 import AdmZip from "adm-zip";
 import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -14,8 +14,8 @@ import GameCompletenessChecker from "../game_opration/complete_checker.ts";
 import ConcDownloader from "../downloader/downloader.ts";
 import DownloadTask from "../downloader/downloadtask.ts";
 import Mirror from "../mirror/mirror.ts";
-import JavaRuntimeInstaller from "../modules/installer/jrt_installer.ts";
-import OptionsIO from "../modules/game/optionsIO.ts";
+import JavaRuntimeInstaller from "../installer/jrt_installer.ts";
+import OptionsIO from "../game/optionsIO.ts";
 import JavaVersionDetector, { type JavaVersionInfo } from "../java/java_version_detect.ts";
 import { compare } from "compare-versions";
 import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
@@ -152,7 +152,7 @@ export default abstract class LaunchBase extends EventEmitter {
         this.assetsPath = path.join(this.minecraftPath, 'assets')
         this.assetsIndexesPath = path.join(this.assetsPath, 'indexes')
         this.assetsObjectsPath = path.join(this.assetsPath, 'objects')
-        this.nativesPath = launchOptions.lwjglNativesDirectory || existify(this.versionPath, `${this.name}-natives`)
+        this.nativesPath = launchOptions.lwjglNativesDirectory || existify(this.versionPath, `${this.name}-natives-${this.OSINFO.platform}`)
         this.minecraftJarPath = path.join(this.versionPath, `${this.name}.jar`)
         this.versionJsonPath = path.join(this.versionPath, `${this.name}.json`)
         if (!fs.existsSync(this.versionJsonPath)) {
