@@ -246,11 +246,11 @@ export default class MinecraftClientInstaller extends EventEmitter {
                     forgeVersion: this.modLoader.forge
                 })
 
-                getForgeInstaller.on('progress', (p:number) => {
+                getForgeInstaller.on('progress', (p: number) => {
                     this.progress["modloader:forge:getInstaller"] = p
                 })
 
-                getForgeInstaller.on('speed', (speed:number) => {
+                getForgeInstaller.on('speed', (speed: number) => {
                     this.speed['forgeinstaller'] = speed
                 })
 
@@ -263,11 +263,11 @@ export default class MinecraftClientInstaller extends EventEmitter {
                     neoforgeVersion: this.modLoader.neoforge
                 })
 
-                getNeoforgeInstaller.on('progress', (p:number) => {
+                getNeoforgeInstaller.on('progress', (p: number) => {
                     this.progress["modloader:neoforge:getInstaller"] = p
                 })
 
-                getNeoforgeInstaller.on('speed', (speed:number) => {
+                getNeoforgeInstaller.on('speed', (speed: number) => {
                     this.speed['neoforgeinstaller'] = speed
                 })
 
@@ -643,9 +643,25 @@ export default class MinecraftClientInstaller extends EventEmitter {
             if (isUserSelectedJavaAvailable) {
                 javaExecutablePath = this.javaExecutablePath
             }
-        } else {
-            //查找或者安装java了
-            const localJavaPath: string = this.OSINFO.platform === 'win32' ? path.join(localJavaExecutablePath, 'bin', 'java.exe') : localJavaExecutablePath
+        }
+
+        //没有用户选择的java或者用户选择的java不可用
+        if (!javaExecutablePath) {
+            //查找或者安装java
+            let localJavaPath: string = ''
+            switch (this.OSINFO.platform) {
+                case 'win32':
+                    localJavaPath = path.join(localJavaExecutablePath, 'bin', 'java.exe')
+                    break;
+                case 'linux':
+                    localJavaPath = path.join(localJavaExecutablePath, 'bin', 'java')
+                    break;
+                case 'darwin':
+                    localJavaPath = path.join(localJavaExecutablePath, 'Contents', 'Home', 'bin', 'java')
+                    break;
+                default:
+                    throw new Error(`不支持的操作系统平台: ${this.OSINFO.platform}`);
+            }
             const isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
             if (isLocalJavaAvailable) {
                 //本地可用就用本地的了

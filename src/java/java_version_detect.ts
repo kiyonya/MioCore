@@ -1,4 +1,5 @@
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
+import * as path from 'path';
 
 export interface JavaVersionInfo {
     path: string;
@@ -26,11 +27,10 @@ export default abstract class JavaVersionDetector {
     }
     private static async getJavaVersion(javaExecutablePath: string, osType: string): Promise<JavaVersionInfo> {
         try {
-            const commandPrefix = osType === 'windows' ? `"${javaExecutablePath}"` : javaExecutablePath;
-
+            // Use execFile to avoid shell quoting issues on Linux (spaces in paths, etc.)
             const [versionOutput, propertiesOutput] = await Promise.all([
-                this.executeCommand(`${commandPrefix} -version 2>&1`, osType),
-                this.executeCommand(`${commandPrefix} -XshowSettings:properties -version 2>&1`, osType)
+                this.executeCommand(javaExecutablePath, ['-version'], osType),
+                this.executeCommand(javaExecutablePath, ['-XshowSettings:properties', '-version'], osType)
             ]);
 
             return {
@@ -46,25 +46,31 @@ export default abstract class JavaVersionDetector {
             throw new Error(`Failed to get Java version on ${osType}: ${error}`);
         }
     }
-    private static async executeCommand(command: string, osType: string): Promise<string> {
-        return new Promise((resolve, reject) => {
-            exec(command, { encoding: 'utf-8' }, (error, stdout, stderr) => {
+    private static async executeCommand(executableOrCommand: string, args: string[], osType: string): Promise<string> {
+        return new Promise((resolve, _reject) => {
+            // Try to execute directly using execFile to avoid shell-escaping issues
+            execFile(executableOrCommand, args, { encoding: 'utf-8' }, (error, stdout, stderr) => {
                 if (error) {
-                    // 在Linux/macOS上，如果命令执行失败，尝试使用绝对路径
-                    if (osType !== 'windows' && error.message.includes('ENOENT')) {
-                        // 尝试使用which命令找到Java可执行文件
-                        exec(`which ${command.split(' ')[0]}`, { encoding: 'utf-8' }, (whichError, whichStdout) => {
+                    // If binary not found on non-windows systems, try to resolve via `which` using basename
+                    const code = (error as any).code;
+                    if (osType !== 'windows' && (code === 'ENOENT' || (error as any).errno === 'ENOENT')) {
+                        const executableName = path.basename(executableOrCommand);
+                        execFile('which', [executableName], { encoding: 'utf-8' }, (whichError, whichStdout) => {
                             if (whichError) {
                                 resolve('');
-                            } else {
-                                const fullPath = whichStdout.trim();
-                                // 重新执行命令
-                                exec(command.replace(command.split(' ')[0], fullPath), { encoding: 'utf-8' }, (retryError, retryStdout, retryStderr) => {
-                                    resolve(retryError ? '' : `${retryStdout}\n${retryStderr}`.trim());
-                                });
+                                return;
                             }
+                            const fullPath = whichStdout.trim();
+                            if (!fullPath) {
+                                resolve('');
+                                return;
+                            }
+                            execFile(fullPath, args, { encoding: 'utf-8' }, (retryError, retryStdout, retryStderr) => {
+                                resolve(retryError ? '' : `${retryStdout}\n${retryStderr}`.trim());
+                            });
                         });
                     } else {
+                        // Other errors should just resolve to empty output so detection gracefully falls back
                         resolve('');
                     }
                 } else {
@@ -99,6 +105,9 @@ export default abstract class JavaVersionDetector {
                     vendor = 'Oracle Corporation';
                 } else if (versionOutput.includes('IBM') || propertiesOutput.includes('IBM')) {
                     vendor = 'IBM';
+                } else if (versionOutput.includes('Zulu') || propertiesOutput.includes('Zulu')) {
+                    // Azul's Zulu may not contain 'Azul' explicitly in older versions
+                    vendor = 'Azul Systems';
                 }
             } else if (osType === 'windows') {
                 if (versionOutput.includes('Microsoft') || propertiesOutput.includes('Microsoft')) {
@@ -112,11 +121,12 @@ export default abstract class JavaVersionDetector {
 
     private static is64Bit(versionOutput: string, propertiesOutput: string, osType: string): boolean {
         // 通用64位检测
-        let is64bit = versionOutput.includes('64-Bit') ||
-            propertiesOutput.includes('sun.arch.data.model=64') ||
-            versionOutput.includes('64-bit') ||
-            propertiesOutput.includes('os.arch=amd64') ||
-            propertiesOutput.includes('os.arch=x86_64');
+        // Some outputs use slightly different casing/spacing, so check with regexes as well
+        const stdout = (versionOutput || '').toLowerCase();
+        const props = (propertiesOutput || '').toLowerCase();
+        const hasSunArchDataModel64 = /sun\.arch\.data\.model\s*=\s*64/.test(props);
+        const hasOsArchAmd64 = /os\.arch\s*=\s*(amd64|x86_64)/.test(props);
+        let is64bit = stdout.includes('64-bit') || stdout.includes('64-bit-jdk') || hasSunArchDataModel64 || hasOsArchAmd64;
         if (!is64bit) {
             if (osType === 'darwin') {
                 // macOS特定的检测
@@ -125,9 +135,7 @@ export default abstract class JavaVersionDetector {
                     propertiesOutput.includes('x86_64');
             } else if (osType === 'linux') {
                 // Linux特定的检测
-                is64bit = versionOutput.includes('amd64') ||
-                    propertiesOutput.includes('x86_64') ||
-                    versionOutput.includes('Linux x86_64');
+                is64bit = stdout.includes('amd64') || stdout.includes('x86_64') || props.includes('amd64') || props.includes('x86_64') || stdout.includes('linux x86_64');
             }
         }
         return is64bit;

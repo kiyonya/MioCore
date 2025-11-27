@@ -63,6 +63,7 @@ abstract class JavaRuntimeResolverBase extends EventEmitter {
                 }
             }
             let javaInfo: JavaVersionInfo | null = await this.getJavaInfo(javaExecutablePath)
+            console.log("检测到的java信息", javaInfo)
             if (!javaInfo) {
                 return false
             }

@@ -86,7 +86,6 @@ export type LaunchOptions = {
   gameFileCheck?: boolean
   mojangServerConnectionCheck?: boolean
   lwjglNativesDirectory?: string
-  //游戏
   windowWidth?: number
   windowHeight?: number
   demo?: boolean
@@ -95,16 +94,11 @@ export type LaunchOptions = {
   useGamaOverride?: boolean
   processPriority?: number
   entryServer?: string
-  //启动
+  useG1GC?:boolean
   createLaunchBat?: boolean
-  //内存
-  //自动内存分配
   autoMemDistribution?: boolean
-  //内存分配数量 number 当 autoMemDistribution 为false时读取内存分配
   memDistribution?: number
-  //最小内存分配 一般无需指定默认为256
   memLow?: number | 256
-  //指令钩子
   beforeLaunch?: string
   afterLaunch?: string
   afterClose?: string

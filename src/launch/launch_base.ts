@@ -17,7 +17,7 @@ import Mirror from "../mirror/mirror.ts";
 import JavaRuntimeInstaller from "../installer/jrt_installer.ts";
 import OptionsIO from "../game/optionsIO.ts";
 import JavaVersionDetector, { type JavaVersionInfo } from "../java/java_version_detect.ts";
-import { compare } from "compare-versions";
+import { compare, validate } from "compare-versions";
 import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
 import { distributionHeap } from "../memory/memory_distribution.ts";
 import NameMap from "../format/namemap.ts";
@@ -97,7 +97,6 @@ export default abstract class LaunchBase extends EventEmitter {
     ]
 
     public static DEFAULT_JVM_ARGS = [
-        "-XX:+UseG1GC",
         "-XX:-UseAdaptiveSizePolicy",
         "-XX:-OmitStackTraceInFastThrow",
         "-Xmx${memory_heap}m",
@@ -224,6 +223,14 @@ export default abstract class LaunchBase extends EventEmitter {
                     depRequiredLibs.push(lib)
                     continue
                 }
+                console.log("处理库", name, version)
+                if (!validate(version)) {
+                    console.warn(`跳过不合法版本号的库 ${name}`)
+                    depRequiredLibs.push(lib)
+                    continue
+                }
+
+                //按照版本号比较 取得最高版本
                 if (libMaps.has(libName)) {
                     //比较版本
                     const settledLibData = libMaps.get(libName)
@@ -281,6 +288,10 @@ export default abstract class LaunchBase extends EventEmitter {
                 ...(versionJson?.arguments?.jvm || [])
             ]
 
+            if (this.launchOptions.useG1GC !== false) {
+                gameLaunchArguments.jvm.push('-XX:+UseG1GC')
+            }
+
             gameLaunchArguments.game =
                 versionJson.arguments?.game ||
                 versionJson?.minecraftArguments?.split(' ') ||
@@ -299,6 +310,7 @@ export default abstract class LaunchBase extends EventEmitter {
                 gameLaunchArguments.game?.push('--server', this.launchOptions.entryServer)
                 gameLaunchArguments.game?.push('--quickPlayMultiplayer', this.launchOptions.entryServer)
             }
+
 
             const argumentMap = new Map()
             argumentMap.set('natives_directory', this.nativesPath)
@@ -383,6 +395,8 @@ export default abstract class LaunchBase extends EventEmitter {
 
     public async resolveJavaRuntime(): Promise<string | null> {
 
+        console.log(this.launchOptions.jvmVersionCheck)
+
         let requiredJavaRuntimeVersion = String(this.versionJson.javaVersion?.majorVersion) || '8'
         let requiredJVMVersion = requiredJavaRuntimeVersion === "8" ? '1.8.0' : requiredJavaRuntimeVersion
 
@@ -405,8 +419,31 @@ export default abstract class LaunchBase extends EventEmitter {
 
         if (!javaExecutablePath) {
             //查找或者安装java了
-            const localJavaPath: string = this.OSINFO.platform === 'win32' ? path.join(localJavaExecutablePath, 'bin', 'java.exe') : localJavaExecutablePath
-            const isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+            let localJavaPath: string = ''
+            switch (this.OSINFO.platform) {
+                case 'win32':
+                    localJavaPath = path.join(localJavaExecutablePath, 'bin', 'java.exe')
+                    break;
+                case 'linux':
+                    localJavaPath = path.join(localJavaExecutablePath, 'bin', 'java')
+                    break;
+                case 'darwin':
+                    localJavaPath = path.join(localJavaExecutablePath, 'Contents', 'Home', 'bin', 'java')
+                    break;
+                default:
+                    throw new Error(`不支持的操作系统平台: ${this.OSINFO.platform}`);
+            }
+
+            let isLocalJavaAvailable = false
+
+            if (this.launchOptions.jvmVersionCheck !== false) {
+                isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+            }
+            else if (fs.existsSync(localJavaPath)) {
+                //保持存在
+                isLocalJavaAvailable = true
+            }
+
             if (isLocalJavaAvailable) {
                 //本地可用就用本地的了
                 javaExecutablePath = localJavaPath
@@ -414,15 +451,20 @@ export default abstract class LaunchBase extends EventEmitter {
             else {
                 //在本地安装java
                 const runtimeVersion = this.versionJson.javaVersion?.component || 'jre-legacy'
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform,this.OSINFO.arch))
+                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
                 this.activeJavaRuntimeInstaller = javaRuntimeInstaller
                 javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
                 javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
                 const installedJavaHome: string = await javaRuntimeInstaller.install()
                 javaRuntimeInstaller.removeAllListeners()
                 //检查安装完成的java是否可以用
-                const isInstalledJavaExecutablePathAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
-                if (isInstalledJavaExecutablePathAvailable) {
+                if (this.launchOptions.jvmVersionCheck !== false) {
+                    const isInstalledJavaExecutablePathAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+                    if (isInstalledJavaExecutablePathAvailable) {
+                        javaExecutablePath = localJavaPath
+                    }
+                }
+                else {
                     javaExecutablePath = localJavaPath
                 }
             }
@@ -441,13 +483,32 @@ export default abstract class LaunchBase extends EventEmitter {
             const fullArgs = [...jvmArgs, mainClass, ...gameArgs];
 
             try {
+                //检查java执行权限
+                try {
+                    fs.accessSync(javaExecutablePath, fs.constants.X_OK);
+                } catch (accessErr) {
+                    // 在非 windows 上尝试修复执行权限
+                    if (this.OSINFO.platform !== 'win32') {
+                        try {
+                            fs.chmodSync(javaExecutablePath, 0o755);
+                        } catch (chmodErr) {
+                            return reject(new Error(`无法执行 Java (${javaExecutablePath})：权限不足或文件系统禁止执行（noexec）。\n` +
+                                `请运行: chmod +x "${javaExecutablePath}" 或将挂载点以 exec 模式挂载，或使用系统安装的 Java。\n详细错误: ${String(accessErr)}`));
+                        }
+                    }
+                    else {
+                        return reject(new Error(`无法执行 Java (${javaExecutablePath})：权限不足。详细错误: ${String(accessErr)}`));
+                    }
+                }
+
                 this.gameProcess = spawn(javaExecutablePath, fullArgs, {
                     cwd: this.versionPath,
                     stdio: ['pipe', 'pipe', 'pipe'],
                     windowsHide: false,
-
                 });
+
                 this.gameProcess.unref()
+
             } catch (error) {
                 return reject(new Error(`进程创建失败: ${error}`));
             }
@@ -503,7 +564,6 @@ export default abstract class LaunchBase extends EventEmitter {
 
         this.createLaunchDetailLog()
     }
-
 
     protected failedLaunch(error: Error) {
         console.error(error)
@@ -703,7 +763,6 @@ export default abstract class LaunchBase extends EventEmitter {
             platform: this.OSINFO.platform,
             arch: this.OSINFO.arch,
             "64bit": this.OSINFO.is64Bit,
-            cpus: this.OSINFO.cpus,
             cpuCount: this.OSINFO.cpus.length,
             cpu: this.OSINFO.cpus[0].model,
             processPriority: this.launchOptions.processPriority,

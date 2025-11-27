@@ -1,4 +1,4 @@
-export function distributionHeap(freeMemory: number, modCount: number = 0, baseMemory: number = 1024): number {
+export function distributionHeap(freeMemory: number, modCount: number = 0, baseMemory: number = 4096): number {
     const ramAvailableMB = freeMemory;
     let ramMininumMB: number;
     let ramTarget1MB: number;
