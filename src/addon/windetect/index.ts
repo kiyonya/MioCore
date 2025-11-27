@@ -1,16 +1,17 @@
 import { createRequire } from 'node:module';
-import { arch } from 'node:process';
+import { arch, platform } from 'node:process';
 
 const Myrequire = createRequire(import.meta.url);
 
 const getWinDetectModule = () => {
-    if (arch === 'x64') {
-        return Myrequire('./bin/windetect_windows_x64.node');
-    } else if (arch === 'ia32') {
-        return Myrequire('./bin/windetect_windows_x86.node');
-    } else {
-        throw new Error(`Unsupported architecture: ${arch}`);
+    if (platform === 'win32') {
+        if (arch === 'x64') {
+            return Myrequire('./bin/windetect_windows_x64.node');
+        } else if (arch === 'ia32') {
+            return Myrequire('./bin/windetect_windows_x86.node');
+        }
     }
+    return null
 };
 
 export default abstract class WinDetectAddon {

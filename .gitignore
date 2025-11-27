@@ -4,5 +4,5 @@ node_modules
 test
 .pool
 data.ts
-./index.ts
+index.ts
 package-lock.json
