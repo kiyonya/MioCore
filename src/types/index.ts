@@ -95,6 +95,13 @@ export type LaunchOptions = {
   processPriority?: number
   entryServer?: string
   useG1GC?:boolean
+
+  customJvmArguments?:string[]
+  
+  addDefaultJvmArguments?:boolean
+
+
+
   createLaunchBat?: boolean
   autoMemDistribution?: boolean
   memDistribution?: number

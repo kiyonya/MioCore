@@ -3,6 +3,7 @@
 node_modules
 test
 .pool
+ijava
 data.ts
 index.ts
 package-lock.json
