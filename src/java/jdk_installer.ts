@@ -55,14 +55,17 @@ export default class JDKInstaller extends EventEmitter {
     public activeDownloadTask: DownloadTask | null = null
     public aborted: boolean = false
 
-    constructor(installPath: string, javaVersion: string, platform?: NodeJS.Platform, arch?: NodeJS.Architecture) {
+    constructor(installPath: string, javaVersion: '8' | '17' | '21', platform?: NodeJS.Platform, arch?: NodeJS.Architecture) {
         super()
         this.installPath = existify(installPath)
         this.javaVersion = javaVersion
         this.platform = platform || os.platform()
         this.arch = arch || os.arch()
         axiosRetry(this.axiosClient, { retries: 10 })
-
+        const isInstallPathEmpty = fs.readdirSync(this.installPath).length === 0
+        if (!isInstallPathEmpty) {
+            throw new Error("安装路径不是空文件夹，可能意味着里面存在已经安装完成的文件，请指定一个空文件夹进行安装")
+        }
     }
 
     /**
@@ -85,7 +88,7 @@ export default class JDKInstaller extends EventEmitter {
         const installPackPath = path.join(this.installPath, installPackFilename)
         this.activeDownloadTask = new DownloadTask([downloadURL], installPackPath, undefined, false)
 
-        this.activeDownloadTask.on('progress', progress => this.emit(progress))
+        this.activeDownloadTask.on('progress', progress => this.emit('progress', progress))
         this.activeDownloadTask.on('speed', speed => this.emit('speed', speed))
 
         this.checkAbort()
@@ -112,8 +115,8 @@ export default class JDKInstaller extends EventEmitter {
         if (rmpack) {
             fs.rmSync(pack, { force: true })
         }
+        this.removeAllListeners()
         return this.installPath
-
     }
 
     public async abort() {
