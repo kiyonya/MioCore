@@ -16,18 +16,9 @@ export interface JavaVersionInfo {
 
 export default abstract class JavaVersionDetector {
 
-    public static async getWindowsJavaVersion(javaExecutablePath: string): Promise<JavaVersionInfo> {
-        return this.getJavaVersion(javaExecutablePath, 'windows');
-    }
-    public static async getLinuxJavaVersion(javaExecutablePath: string): Promise<JavaVersionInfo> {
-        return this.getJavaVersion(javaExecutablePath, 'linux');
-    }
-    public static async getMacOSJavaVersion(javaExecutablePath: string): Promise<JavaVersionInfo> {
-        return this.getJavaVersion(javaExecutablePath, 'darwin');
-    }
-    private static async getJavaVersion(javaExecutablePath: string, osType: string): Promise<JavaVersionInfo> {
+    public static async getJavaInfo(javaExecutablePath: string, osType: NodeJS.Platform): Promise<JavaVersionInfo> {
         try {
-            // Use execFile to avoid shell quoting issues on Linux (spaces in paths, etc.)
+
             const [versionOutput, propertiesOutput] = await Promise.all([
                 this.executeCommand(javaExecutablePath, ['-version'], osType),
                 this.executeCommand(javaExecutablePath, ['-XshowSettings:properties', '-version'], osType)
@@ -42,18 +33,18 @@ export default abstract class JavaVersionDetector {
                 is64bit: this.is64Bit(versionOutput, propertiesOutput, osType),
                 raw: { versionOutput, propertiesOutput }
             };
+
         } catch (error) {
             throw new Error(`Failed to get Java version on ${osType}: ${error}`);
         }
     }
-    private static async executeCommand(executableOrCommand: string, args: string[], osType: string): Promise<string> {
+
+    private static async executeCommand(executableOrCommand: string, args: string[], osType: NodeJS.Platform): Promise<string> {
         return new Promise((resolve, _reject) => {
-            // Try to execute directly using execFile to avoid shell-escaping issues
             execFile(executableOrCommand, args, { encoding: 'utf-8' }, (error, stdout, stderr) => {
                 if (error) {
-                    // If binary not found on non-windows systems, try to resolve via `which` using basename
                     const code = (error as any).code;
-                    if (osType !== 'windows' && (code === 'ENOENT' || (error as any).errno === 'ENOENT')) {
+                    if (osType !== 'win32' && (code === 'ENOENT' || (error as any).errno === 'ENOENT')) {
                         const executableName = path.basename(executableOrCommand);
                         execFile('which', [executableName], { encoding: 'utf-8' }, (whichError, whichStdout) => {
                             if (whichError) {
@@ -106,7 +97,6 @@ export default abstract class JavaVersionDetector {
                 } else if (versionOutput.includes('IBM') || propertiesOutput.includes('IBM')) {
                     vendor = 'IBM';
                 } else if (versionOutput.includes('Zulu') || propertiesOutput.includes('Zulu')) {
-                    // Azul's Zulu may not contain 'Azul' explicitly in older versions
                     vendor = 'Azul Systems';
                 }
             } else if (osType === 'windows') {
@@ -119,9 +109,8 @@ export default abstract class JavaVersionDetector {
         return vendor || 'unknown';
     }
 
-    private static is64Bit(versionOutput: string, propertiesOutput: string, osType: string): boolean {
+    private static is64Bit(versionOutput: string, propertiesOutput: string, osType: NodeJS.Platform): boolean {
         // 通用64位检测
-        // Some outputs use slightly different casing/spacing, so check with regexes as well
         const stdout = (versionOutput || '').toLowerCase();
         const props = (propertiesOutput || '').toLowerCase();
         const hasSunArchDataModel64 = /sun\.arch\.data\.model\s*=\s*64/.test(props);

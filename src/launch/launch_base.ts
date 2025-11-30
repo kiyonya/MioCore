@@ -3,8 +3,7 @@ import path from "path"
 import os, { platform } from 'os'
 import fs from 'fs'
 import AdmZip from "adm-zip";
-import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
-
+import { type ChildProcessWithoutNullStreams } from "child_process";
 import { type LaunchOptions, type MinecraftVersionJson, type MinecraftLib, type MinecraftLibClassifiers, type MinecraftLibClassifierIndex, type MinecraftLibClassifieExtractGuide } from "../types/index.ts";
 import { existify, mavenToPath } from "../utils/io.ts";
 import { checkOSRules, getSystemInfo, type OSInfo } from "../utils/os.ts";
@@ -18,9 +17,10 @@ import JavaRuntimeInstaller from "../installer/jrt_installer.ts";
 import OptionsIO from "../game/optionsIO.ts";
 import JavaVersionDetector, { type JavaVersionInfo } from "../java/java_version_detect.ts";
 import { compare, validate } from "compare-versions";
-import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
 import { distributionHeap } from "../memory/memory_distribution.ts";
 import NameMap from "../format/namemap.ts";
+import JavaExecutor from "../java/java_exec.ts";
+import JDKInstaller from "../java/jdk_installer.ts";
 
 
 export interface LaunchEvents {
@@ -130,7 +130,7 @@ export default abstract class LaunchBase extends EventEmitter {
     public launchStatusEmitInterval: NodeJS.Timeout | null = null
     public separator: string = this.OSINFO.platform === 'win32' ? ";" : ":"
     public canceled: boolean = false
-    public activeJavaRuntimeInstaller: JavaRuntimeInstaller | null = null
+    public activeJavaRuntimeInstaller: JavaRuntimeInstaller | JDKInstaller | null = null
     public activeCompleteDownloader: ConcDownloader | null = null
 
     public javaInfo: JavaVersionInfo | null = null
@@ -395,9 +395,7 @@ export default abstract class LaunchBase extends EventEmitter {
 
     public async resolveJavaRuntime(): Promise<string | null> {
 
-        console.log(this.launchOptions.jvmVersionCheck)
-
-        let requiredJavaRuntimeVersion = String(this.versionJson.javaVersion?.majorVersion) || '8'
+        let requiredJavaRuntimeVersion: string = String(this.versionJson.javaVersion?.majorVersion) || '8'
         let requiredJVMVersion = requiredJavaRuntimeVersion === "8" ? '1.8.0' : requiredJavaRuntimeVersion
 
         const localJavaExecutablePath = path.join(this.minecraftPath, 'java', `${this.OSINFO.platform}-${this.OSINFO.arch}`, String(requiredJavaRuntimeVersion))
@@ -407,7 +405,7 @@ export default abstract class LaunchBase extends EventEmitter {
         if (this.launchOptions.jvmVersionCheck !== false) {
             this.progress['checking-java'] = 0
             if (this.launchOptions.java) {
-                const isUserSelectedJavaAvailable = await JavaRuntimeResolver.isJavaValid(this.launchOptions.java, requiredJVMVersion)
+                const isUserSelectedJavaAvailable = await JavaExecutor.isJavaValid(this.launchOptions.java, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
                 if (isUserSelectedJavaAvailable) {
                     javaExecutablePath = this.launchOptions.java
                 }
@@ -437,7 +435,7 @@ export default abstract class LaunchBase extends EventEmitter {
             let isLocalJavaAvailable = false
 
             if (this.launchOptions.jvmVersionCheck !== false) {
-                isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+                isLocalJavaAvailable = await JavaExecutor.isJavaValid(localJavaPath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
             }
             else if (fs.existsSync(localJavaPath)) {
                 //保持存在
@@ -450,18 +448,32 @@ export default abstract class LaunchBase extends EventEmitter {
             }
             else {
                 //在本地安装java
-                const runtimeVersion = this.versionJson.javaVersion?.component || 'jre-legacy'
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
-                this.activeJavaRuntimeInstaller = javaRuntimeInstaller
-                javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
-                javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
-                const installedJavaHome: string = await javaRuntimeInstaller.install()
-                javaRuntimeInstaller.removeAllListeners()
+                if (this.launchOptions.useMojangJavaRuntime) {
+                    const runtimeVersion = this.versionJson.javaVersion?.component || 'jre-legacy'
+                    const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
+                    this.activeJavaRuntimeInstaller = javaRuntimeInstaller
+                    javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
+                    javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
+                    await javaRuntimeInstaller.install()
+                    javaRuntimeInstaller.removeAllListeners()
+                }
+                else {
+                    const jdkInstaller = new JDKInstaller(localJavaExecutablePath, requiredJavaRuntimeVersion, this.OSINFO.platform, this.OSINFO.arch)
+                    this.activeJavaRuntimeInstaller = jdkInstaller
+                    jdkInstaller.on('progress', (p) => { this.progress['install-java'] = p })
+                    jdkInstaller.on('speed', (s) => { this.speed['install-java'] = s })
+                    await jdkInstaller.install()
+                    jdkInstaller.removeAllListeners()
+                }
+
                 //检查安装完成的java是否可以用
                 if (this.launchOptions.jvmVersionCheck !== false) {
-                    const isInstalledJavaExecutablePathAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+                    const isInstalledJavaExecutablePathAvailable = await JavaExecutor.isJavaValid(localJavaPath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
                     if (isInstalledJavaExecutablePathAvailable) {
                         javaExecutablePath = localJavaPath
+                    }
+                    else {
+                        throw new Error("安装的java不可用")
                     }
                 }
                 else {
@@ -483,30 +495,13 @@ export default abstract class LaunchBase extends EventEmitter {
             const fullArgs = [...jvmArgs, mainClass, ...gameArgs];
 
             try {
-                //检查java执行权限
-                try {
-                    fs.accessSync(javaExecutablePath, fs.constants.X_OK);
-                } catch (accessErr) {
-                    // 在非 windows 上尝试修复执行权限
-                    if (this.OSINFO.platform !== 'win32') {
-                        try {
-                            fs.chmodSync(javaExecutablePath, 0o755);
-                        } catch (chmodErr) {
-                            return reject(new Error(`无法执行 Java (${javaExecutablePath})：权限不足或文件系统禁止执行（noexec）。\n` +
-                                `请运行: chmod +x "${javaExecutablePath}" 或将挂载点以 exec 模式挂载，或使用系统安装的 Java。\n详细错误: ${String(accessErr)}`));
-                        }
-                    }
-                    else {
-                        return reject(new Error(`无法执行 Java (${javaExecutablePath})：权限不足。详细错误: ${String(accessErr)}`));
-                    }
-                }
 
-                this.gameProcess = spawn(javaExecutablePath, fullArgs, {
+                this.gameProcess = JavaExecutor.spawnProcess(javaExecutablePath, fullArgs, {
                     cwd: this.versionPath,
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    windowsHide: false,
-                });
-
+                    detached: true,
+                    stdio: 'overlapped',
+                    windowsHide: false
+                })
                 this.gameProcess.unref()
 
             } catch (error) {
@@ -540,7 +535,7 @@ export default abstract class LaunchBase extends EventEmitter {
         if (!javaExecutablePath) {
             throw new Error("没有可用的java执行目录")
         }
-        this.javaInfo = await JavaRuntimeResolver.getJavaInfo(javaExecutablePath)
+        this.javaInfo = await JavaVersionDetector.getJavaInfo(javaExecutablePath, this.OSINFO.platform)
         console.log("已使用java", javaExecutablePath)
 
         //当设置自动内存分配 或者 没有手动分配内存的时候

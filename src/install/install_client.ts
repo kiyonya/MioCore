@@ -23,8 +23,9 @@ import Mirror from "../mirror/mirror.ts";
 import { LegacyForgeGather } from "../gather/gather_legacyforge.ts";
 import LegacyForgeInstaller from "../installer/legacyforge_installer.ts";
 import { type MinecraftVersionJson, type MinecraftLib, type DownloadTaskItem } from '../types/index.ts'
-import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
 import NameMap from "../format/namemap.ts";
+import JDKInstaller from "../java/jdk_installer.ts";
+import JavaExecutor from "../java/java_exec.ts";
 
 type MinecraftAssetsObject = {
     hash: string;
@@ -38,7 +39,12 @@ export interface MinecraftClientInstallerOptions {
     version: string,
     modLoader?: Partial<Record<"forge" | "fabric" | "neoforge" | "quilt" | 'fabricapi', string>> | null,
     java?: string,
-    mirrorFirst?: boolean
+    mirrorFirst?: boolean,
+    useMojangJavaRuntime?: boolean
+}
+
+export interface InstallConfig {
+    useMojangJavaRuntime?: boolean
 }
 
 export interface InstallEvents {
@@ -47,6 +53,7 @@ export interface InstallEvents {
 }
 
 export default class MinecraftClientInstaller extends EventEmitter {
+    private activeJavaRuntimeInstaller: JavaRuntimeInstaller | JDKInstaller | null = null;
 
     on<K extends keyof InstallEvents>(
         event: K,
@@ -88,10 +95,11 @@ export default class MinecraftClientInstaller extends EventEmitter {
     public javaExecutablePath?: string
     public mirrorFirst: boolean = false
     public statusEmitInterval: NodeJS.Timeout | null = null
+    public installConfig?: InstallConfig
 
-
-    constructor(options: MinecraftClientInstallerOptions) {
+    constructor(options: MinecraftClientInstallerOptions, installConfig?: InstallConfig) {
         super();
+        this.installConfig = installConfig
         this.minecraftPath = options.minecraftPath;
         this.versionPath = options.versionIsolation ? existify(options.minecraftPath, 'versions', options.name) : options.minecraftPath;
         this.name = options.name;
@@ -639,7 +647,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
 
         if (this.javaExecutablePath) {
             this.progress['checking-java'] = 0
-            const isUserSelectedJavaAvailable = await JavaRuntimeResolver.isJavaValid(this.javaExecutablePath, requiredJVMVersion)
+            const isUserSelectedJavaAvailable = await JavaExecutor.isJavaValid(this.javaExecutablePath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
             if (isUserSelectedJavaAvailable) {
                 javaExecutablePath = this.javaExecutablePath
             }
@@ -662,22 +670,32 @@ export default class MinecraftClientInstaller extends EventEmitter {
                 default:
                     throw new Error(`不支持的操作系统平台: ${this.OSINFO.platform}`);
             }
-            const isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+            const isLocalJavaAvailable = await JavaExecutor.isJavaValid(localJavaPath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
             if (isLocalJavaAvailable) {
                 //本地可用就用本地的了
                 javaExecutablePath = localJavaPath
             }
             else {
-                //在本地安装java
-                const runtimeVersion = versionJson.javaVersion?.component || 'jre-legacy'
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
+                if (this.installConfig?.useMojangJavaRuntime) {
+                    const runtimeVersion = versionJson.javaVersion?.component || 'jre-legacy'
+                    const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
+                    this.activeJavaRuntimeInstaller = javaRuntimeInstaller
+                    javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
+                    javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
+                    await javaRuntimeInstaller.install()
+                    javaRuntimeInstaller.removeAllListeners()
+                }
+                else {
 
-                javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
-                javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
-                const installedJavaHome: string = await javaRuntimeInstaller.install()
-                javaRuntimeInstaller.removeAllListeners()
+                    const jdkInstaller = new JDKInstaller(localJavaExecutablePath, requiredJavaRuntimeVersion, this.OSINFO.platform, this.OSINFO.arch)
+                    this.activeJavaRuntimeInstaller = jdkInstaller
+                    jdkInstaller.on('progress', (p) => { this.progress['install-java'] = p })
+                    jdkInstaller.on('speed', (s) => { this.speed['install-java'] = s })
+                    await jdkInstaller.install()
+                    jdkInstaller.removeAllListeners()
+                }
                 //检查安装完成的java是否可以用
-                const isInstalledJavaExecutablePathAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
+                const isInstalledJavaExecutablePathAvailable = await JavaExecutor.isJavaValid(localJavaPath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
                 if (isInstalledJavaExecutablePathAvailable) {
                     javaExecutablePath = localJavaPath
                 }
