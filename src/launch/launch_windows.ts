@@ -6,7 +6,7 @@ import {type LaunchOptions } from "../types/index.ts";
 import LaunchBase, { type LauncherCreateOptions, type LaunchAuthOptions } from "./launch_base.ts";
 import WinDetectAddon from "../addon/windetect/index.ts";
 
-export default class LaunchWindowsX64 extends LaunchBase {
+export default class LaunchWindows extends LaunchBase {
 
     private static readonly WINDOW_CHECK_INTERVAL = 100;
     private static readonly MAX_WINDOW_WAIT_TIME = 180000;
@@ -84,10 +84,10 @@ export default class LaunchWindowsX64 extends LaunchBase {
             };
 
             timeoutId = setTimeout(() => {
-                console.warn(`等待游戏窗口超时 (${LaunchWindowsX64.MAX_WINDOW_WAIT_TIME}ms)`);
+                console.warn(`等待游戏窗口超时 (${LaunchWindows.MAX_WINDOW_WAIT_TIME}ms)`);
                 cleanup();
                 resolve(false);
-            }, LaunchWindowsX64.MAX_WINDOW_WAIT_TIME);
+            }, LaunchWindows.MAX_WINDOW_WAIT_TIME);
 
             intervalId = setInterval(() => {
                 try {
@@ -111,7 +111,7 @@ export default class LaunchWindowsX64 extends LaunchBase {
                     cleanup();
                     resolve(false);
                 }
-            }, LaunchWindowsX64.WINDOW_CHECK_INTERVAL);
+            }, LaunchWindows.WINDOW_CHECK_INTERVAL);
 
             this.once('canceled', () => {
                 console.log('启动已取消，停止等待窗口');

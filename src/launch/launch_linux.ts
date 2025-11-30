@@ -1,11 +1,8 @@
 
-import {type LaunchOptions } from "../types/index.ts";
+import { type LaunchOptions } from "../types/index.ts";
 import LaunchBase, { type LauncherCreateOptions, type LaunchAuthOptions } from "./launch_base.ts";
 
-export default class LaunchLinuxX64 extends LaunchBase {
-
-    private static readonly WINDOW_CHECK_INTERVAL = 100;
-    private static readonly MAX_WINDOW_WAIT_TIME = 180000;
+export default class LaunchLinux extends LaunchBase {
 
     constructor(createOptions: LauncherCreateOptions, launchOptions: LaunchOptions) {
         super(createOptions, launchOptions);

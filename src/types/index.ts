@@ -100,7 +100,7 @@ export type LaunchOptions = {
   
   addDefaultJvmArguments?:boolean
 
-
+  useMojangJavaRuntime?:boolean
 
   createLaunchBat?: boolean
   autoMemDistribution?: boolean
