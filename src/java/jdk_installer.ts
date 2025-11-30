@@ -55,7 +55,7 @@ export default class JDKInstaller extends EventEmitter {
     public activeDownloadTask: DownloadTask | null = null
     public aborted: boolean = false
 
-    constructor(installPath: string, javaVersion: '8' | '17' | '21', platform?: NodeJS.Platform, arch?: NodeJS.Architecture) {
+    constructor(installPath: string, javaVersion:string, platform?: NodeJS.Platform, arch?: NodeJS.Architecture) {
         super()
         this.installPath = existify(installPath)
         this.javaVersion = javaVersion
@@ -122,7 +122,14 @@ export default class JDKInstaller extends EventEmitter {
     public async abort() {
         this.aborted = true
         if (this.activeDownloadTask) {
-            this.activeDownloadTask.abort()
+            await this.activeDownloadTask.abort()
+            if(fs.existsSync(this.installPath)){
+                try {
+                    fs.rmSync(this.installPath,{recursive:true,force:true})
+                } catch (error) {
+                    console.warn("删除源文件失败")
+                }
+            }
         }
     }
 
