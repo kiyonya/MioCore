@@ -1,11 +1,11 @@
 {
   "name": "mio-core",
-  "version": "0.5.4",
+  "version": "0.5.8",
   "description": "Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编写，提供超多工具和方法类，包括安装、启动游戏，文件检查，版本扫描，系统交互以及第三方API服务等功能。",
   "license": "MIT",
   "author": "",
   "type": "module",
-  "main": "index.ts",
+  "main": "test.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,8 +16,6 @@
     "axios": "^1.12.1",
     "axios-retry": "^4.5.0",
     "compare-versions": "^6.1.1",
-    "decompress-targz": "^4.1.1",
-    "fs-extra": "^11.3.2",
     "iconv-lite": "^0.4.24",
     "ini": "^5.0.0",
     "jsdom": "^27.0.0",
@@ -25,7 +23,6 @@
     "p-limit": "^7.1.1",
     "sharp": "^0.34.5",
     "tar": "^7.5.2",
-    "targz": "^1.0.1",
     "toml": "^3.0.0",
     "tsc": "^2.0.4"
   },

@@ -11,7 +11,6 @@ import INI from '../utils/ini.ts'
 import { type MMLDataJson } from '../types/index.ts'
 import { existify, getDirSize, getFileNameFromPath } from '../utils/io.ts'
 import ModActions from './mod_actions.ts'
-import sharp from 'sharp'
 import os from 'os'
 
 export type InstanceInfoStruct = {
@@ -361,35 +360,19 @@ export default abstract class InstanceUtil {
     return resourcePackInfo
   }
 
-  public static async readScreenshotsFromDir(screenshotsDir: string, thumbnailOptions?: { createThumbnail: boolean, tempDir?: string, quality?: number }): Promise<ScreenshotInfo[]> {
+  public static async readScreenshotsFromDir(screenshotsDir: string): Promise<ScreenshotInfo[]> {
     if (!fs.existsSync(screenshotsDir)) {
       throw new DirNotFoundException('找不到文件夹', screenshotsDir)
     }
     const screenshots = fs.readdirSync(screenshotsDir).filter(i => ['.jpg', '.png'].includes(path.extname(i))).map(i => path.join(screenshotsDir, i))
     const result: ScreenshotInfo[] = []
     for (const screenshot of screenshots) {
-      const stats = fs.statSync(screenshot)
-
+      const stats = await fs.promises.stat(screenshot)
       const info: ScreenshotInfo = {
         path: screenshot,
         createTime: stats.birthtime.getTime(),
         size: stats.size,
         name: getFileNameFromPath(screenshot),
-      }
-
-      if (thumbnailOptions && thumbnailOptions.createThumbnail) {
-        const fileSha1 = await HashUtil.sha1(screenshot)
-        let temp = thumbnailOptions.tempDir || path.join(os.tmpdir(), 'kiyuu.miolauncher', 'temp', 'screenshots')
-        existify(temp)
-        info.sha1 = fileSha1
-        const thumbnailFile = path.join(temp, `${fileSha1}.webp`)
-        if (fs.existsSync(thumbnailFile)) {
-          info.thumbnail = thumbnailFile
-        }
-        else {
-          await sharp(screenshot).toFormat('webp', { quality: thumbnailOptions.quality || 10 }).toFile(thumbnailFile)
-          info.thumbnail = thumbnailFile
-        }
       }
       result.push(info)
     }

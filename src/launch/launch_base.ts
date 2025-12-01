@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 import path from "path"
-import os, { platform } from 'os'
+import os from 'os'
 import fs from 'fs'
 import AdmZip from "adm-zip";
 import { type ChildProcessWithoutNullStreams } from "child_process";
