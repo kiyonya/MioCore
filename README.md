@@ -1,9 +1,9 @@
-![图标](icon/logo.png)
+![图标](icon/logo-new.png)
 
 ![License](https://img.shields.io/badge/Github-Kiyuu-lightblue?style=flat-square)   ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
 
-## Mio Core
-Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编写，提供超多工具和方法类，包括安装、启动游戏，文件检查，版本扫描，系统交互以及第三方API服务等功能。
+# Mio Core
+Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编写，跨平台，开箱即用！Mio Core提供超多工具和方法类，包括安装、启动游戏，文件检查，版本扫描，系统交互以及第三方API服务等功能。
 
 您可以在Nodejs 16+的环境中使用Mio Core，也可以在如Electron等桌面应用开发工具中使用。如果您在使用期间遇到了问题，也欢迎您在这里发Issues。
 
@@ -11,7 +11,7 @@ Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编�
 > 本项目是[MMLib](https://github.com/kiyonya/mmlib)的重构，添加大量新内容！（想知道这个库的由来可以去看Readme）
 
 > [!IMPORTANT]
-> 目前Mio Core仍处于早期开发阶段，修改较为频繁，未来将支持Linux与MacOS系统。
+> 目前Mio Core仍处于早期开发阶段，修改较为频繁，目前已经基本支持Linux和Windows平台的安装和启动！
 
 ## Features
 - 安装所有游戏版本，切换镜像安装
@@ -39,7 +39,7 @@ Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编�
 
 - [p-Limit](https://github.com/sindresorhus/p-limit)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
 
-- [Sharp](https://github.com/lovell/sharp)  ![License](https://img.shields.io/badge/License-Apache2.0-orange?style=flat-square) 
+- [node-tar](https://github.com/isaacs/node-tar)  ![License](https://img.shields.io/badge/License-BlueOak1.0.0-orange?style=flat-square) 
 
 - [JSdom](https://github.com/jsdom/jsdom#readme)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
 
@@ -52,4 +52,5 @@ Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编�
 
 ## 协议
 Mio Core基于 **MIT** 协议开源，查看License文件获取更多信息
+
 如果这些代码对您有帮助就太好了，感谢您看到这里(●´ω｀●)ゞ
