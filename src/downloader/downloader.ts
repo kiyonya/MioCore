@@ -49,9 +49,9 @@ export default class ConcDownloader extends EventEmitter {
 
     for (let task of this.tasks) {
       if (task.status === 'pending') {
-        speed += task.speed || 0
+        speed += task.speed
       }
-      totalProgress += task.progress || 0
+      totalProgress += task.progress
       if (task.status === 'complete') {
         completedTasks++
       }

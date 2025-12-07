@@ -21,6 +21,7 @@ import { distributionHeap } from "../memory/memory_distribution.ts";
 import NameMap from "../format/namemap.ts";
 import JavaExecutor from "../java/java_exec.ts";
 import JDKInstaller from "../java/jdk_installer.ts";
+import { randomUUID } from "crypto";
 
 
 export interface LaunchEvents {
@@ -99,8 +100,6 @@ export default abstract class LaunchBase extends EventEmitter {
     public static DEFAULT_JVM_ARGS = [
         "-XX:-UseAdaptiveSizePolicy",
         "-XX:-OmitStackTraceInFastThrow",
-        "-Xmx${memory_heap}m",
-        "-Xms${memory_low}m",
         "-Djdk.lang.Process.allowAmbiguousCommands=true",
         "-Dfml.ignoreInvalidMinecraftCertificates=True",
         "-Dfml.ignorePatchDiscrepancies=True",
@@ -135,6 +134,11 @@ export default abstract class LaunchBase extends EventEmitter {
 
     public javaInfo: JavaVersionInfo | null = null
     public javaExecutablePath: string = ''
+
+    private vmMemDistribution: { xmx?: number, xms?: number } = {
+        xmx: undefined,
+        xms: undefined,
+    }
 
     constructor(createOptions: LauncherCreateOptions, launchOptions: LaunchOptions) {
         super()
@@ -178,8 +182,10 @@ export default abstract class LaunchBase extends EventEmitter {
             console.error("有无法修复的错误", result.irreparable)
             throw new Error('无法修复的问题')
         }
+
         //如果已经取消 则不进行修复
         else if (result.repairable.length && !this.canceled) {
+            console.log(result)
             //新增进度键
             this.progress['repair'] = 0
             this.speed['repair'] = 0
@@ -189,26 +195,29 @@ export default abstract class LaunchBase extends EventEmitter {
                 if (!missing.url) {
                     throw new Error('无法修复的问题')
                 }
-                downloader.add(new DownloadTask(Mirror.getMirrors(missing.url, true), missing.path, missing.sha1))
-                downloader.on('progress', p => this.progress['repair'] = p)
-                downloader.on('speed', s => this.speed['repair'] = s)
-                await downloader.download()
-                this.activeCompleteDownloader = null
-                downloader.removeAllListeners()
+                downloader.add(new DownloadTask(Mirror.getMirrors(missing.url, true), path.normalize(missing.path), missing.sha1))
             }
+            downloader.on('progress', p => this.progress['repair'] = p)
+            downloader.on('speed', s => this.speed['repair'] = s)
+            await downloader.download()
+            this.activeCompleteDownloader = null
+            downloader.removeAllListeners()
         }
         this.progress['repair'] = 1
         this.speed['repair'] = 0
         return result
     }
 
-    public buildLaunchCommand(authOptions: { username: string, accessToken: string, uuid: string }): LaunchArguments {
+    public buildLaunchCommand(authOptions?: LaunchAuthOptions): LaunchArguments {
+        if (!authOptions) {
+            console.warn("没有玩家认证信息，将生成测试玩家")
+            authOptions = this.createTestAuthetication()
+        }
         try {
             if (!fs.existsSync(this.versionJsonPath)) {
                 throw new FileNotFoundException('缺失版本JSON文件', this.versionJsonPath)
             }
-            const versionJson: MinecraftVersionJson = JSON.parse(fs.readFileSync(this.versionJsonPath, 'utf-8'))
-            let requiredLibs = versionJson.libraries?.filter(i => i.name && checkOSRules(i.rules)).filter(lib => {
+            let requiredLibs = this.versionJson.libraries?.filter(i => i.name && checkOSRules(i.rules)).filter(lib => {
                 if (!lib.clientreq || lib.clientreq === true) { return true }
                 return false
             })
@@ -260,21 +269,16 @@ export default abstract class LaunchBase extends EventEmitter {
             }
 
             depRequiredLibs.push(...Array.from(libMaps.values()).map(i => i.lib))
-
             let classPath: string[] = []
-
             for (const lib of depRequiredLibs) {
                 if (lib.downloads?.classifiers && !this.launchOptions.lwjglNativesDirectory) {
-
                     const nativeJar: string = this.extractNativeFile(lib.downloads?.classifiers, lib.natives as MinecraftLibClassifierIndex, lib.extract as MinecraftLibClassifieExtractGuide)
                     // classPath.push(nativeJar)
-
                 }
                 else {
                     lib.name && classPath.push(path.join(this.libPath, mavenToPath(lib.name)))
                 }
             }
-
             classPath.push(this.minecraftJarPath)
 
             for (const classJar of classPath) {
@@ -282,115 +286,167 @@ export default abstract class LaunchBase extends EventEmitter {
             }
 
             classPath = [...new Set(classPath)]
-            let gameLaunchArguments: { jvm?: any[]; game?: (string | number)[] } = {}
-            gameLaunchArguments.jvm = [
-                ...(this.launchOptions.jvmArgumentsHead?.length ? this.launchOptions.jvmArgumentsHead : LaunchBase.DEFAULT_JVM_ARGS),
-                ...(versionJson?.arguments?.jvm || [])
-            ]
 
-            if (this.launchOptions.useG1GC !== false) {
-                gameLaunchArguments.jvm.push('-XX:+UseG1GC')
-            }
+            const vmArguments = this._buildVMArguments()
+            const gameArguments = this._buildGameArguments()
 
-            gameLaunchArguments.game =
-                versionJson.arguments?.game ||
-                versionJson?.minecraftArguments?.split(' ') ||
-                LaunchBase.DEFAULT_GAME_ARGS
-
-            if (this.launchOptions.windowWidth) {
-                gameLaunchArguments?.game?.push('--width', this.launchOptions.windowWidth)
-            }
-            if (this.launchOptions.windowHeight) {
-                gameLaunchArguments?.game?.push('--height', this.launchOptions.windowHeight)
-            }
-            if (this.launchOptions.demo) {
-                gameLaunchArguments?.game?.push('--demo')
-            }
-            if (this.launchOptions.entryServer) {
-                gameLaunchArguments.game?.push('--server', this.launchOptions.entryServer)
-                gameLaunchArguments.game?.push('--quickPlayMultiplayer', this.launchOptions.entryServer)
-            }
-
-
-            const argumentMap = new Map()
+            const argumentMap: Map<string, string> = new Map()
             argumentMap.set('natives_directory', this.nativesPath)
-            argumentMap.set('launcher_name', 'MML')
-            argumentMap.set('launcher_version', '0.0.5')
+            argumentMap.set('launcher_name', this.launchOptions.launcherName ?? 'MML')
+            argumentMap.set('launcher_version', this.launchOptions.launcherVersion ?? '1.0.0')
             argumentMap.set('classpath', classPath.join(this.separator))
             argumentMap.set('library_directory', this.libPath)
             argumentMap.set('classpath_separator', this.separator)
             argumentMap.set('auth_player_name', authOptions.username)
             argumentMap.set('version_name', this.name)
             argumentMap.set('game_directory', this.versionPath)
-            argumentMap.set('assets_index_name', versionJson.assets)
+            argumentMap.set('assets_index_name', String(this.versionJson.assets))
             argumentMap.set('assets_root', this.assetsPath)
             argumentMap.set('game_assets', this.assetsPath)
             argumentMap.set('auth_uuid', authOptions.uuid)
             argumentMap.set('auth_access_token', authOptions.accessToken)
             argumentMap.set('client_id', authOptions.uuid)
             argumentMap.set('clientid', authOptions.uuid)
-            argumentMap.set('user_type', 'msa')
-            argumentMap.set('version_type', 'MioMinecraftLauncher')
-            argumentMap.set('user_properties', '{}')
-            argumentMap.set('memory_heap', this.launchOptions.memDistribution)
-            argumentMap.set('memory_low', this.launchOptions.memLow || 256)
+            argumentMap.set('user_type', this.launchOptions.userType ?? 'msa')
+            argumentMap.set('version_type', this.launchOptions.versionType ?? 'MML')
+            argumentMap.set('user_properties', this.launchOptions.userProperties ? JSON.stringify(this.launchOptions.userProperties) : "{}")
+            argumentMap.set('vmxmx', String(this.vmMemDistribution.xmx || 2048))
+            argumentMap.set('vmxms', String(this.vmMemDistribution.xms || 2000))
             argumentMap.set('auth_xuid', authOptions.uuid)
-            if (!gameLaunchArguments?.jvm?.includes('-cp')) {
-                gameLaunchArguments?.jvm?.push('-cp')
-                gameLaunchArguments?.jvm?.push('${classpath}')
+            if (!vmArguments.includes('-cp')) {
+                vmArguments.push('-cp')
+                vmArguments.push('${classpath}')
             }
-            const jvmArgs: string[] = []
-            for (let i = 0; i < gameLaunchArguments?.jvm?.length; i++) {
-                let value: any = gameLaunchArguments.jvm[i]
-                if (typeof value === 'object') {
-                    const isPass = checkOSRules(value?.rules)
-                    if (isPass) {
-                        if (Array.isArray(value.value)) {
-                            jvmArgs.push(...value.value)
-                        } else {
-                            jvmArgs.push(value.value)
-                        }
+            const processedJvmArgs: string[] = []
+            for (let i = 0; i < vmArguments.length; i++) {
+                let value: string = vmArguments[i]
+                if (value === '-p') {
+                    processedJvmArgs.push('-p')
+                    let param = vmArguments[i + 1]
+                    const paramSplitedArray = param.split('${classpath_separator}')
+                    let modulePathes: string[] = []
+                    for (let modulePath of paramSplitedArray) {
+                        modulePath = modulePath.replace('${library_directory}', '')
+                        modulePath = path.join(this.libPath, modulePath)
+                        modulePathes.push(modulePath)
                     }
+                    processedJvmArgs.push(modulePathes.join(argumentMap.get('classpath_separator')))
+                    i++
                 } else {
-                    //修复forge -p替换以后路径错误的问题
-                    if (value === '-p') {
-                        jvmArgs.push('-p')
-                        let param = gameLaunchArguments.jvm[i + 1]
-                        const paramSplitedArray = param.split('${classpath_separator}')
-                        let modulePathes: string[] = []
-                        for (let modulePath of paramSplitedArray) {
-                            modulePath = modulePath.replace('${library_directory}', '')
-                            modulePath = path.join(this.libPath, modulePath)
-                            modulePathes.push(modulePath)
-                        }
-                        jvmArgs.push(modulePathes.join(argumentMap.get('classpath_separator')))
-                        i++
-                    } else {
-                        const replacement = this.replaceTemplate(value, argumentMap)
-                        jvmArgs.push(replacement)
-                    }
+                    const replacement = this.replaceTemplate(value, argumentMap)
+                    processedJvmArgs.push(replacement)
                 }
             }
-
-            jvmArgs.forEach(jvm => (jvm.includes('=') && jvm.startsWith('-')) && jvm.replaceAll(' ', ''))
-
-            const gameArgs: string[] = []
-            for (let arg of gameLaunchArguments?.game || []) {
-                if (typeof arg === 'object') {
+            processedJvmArgs.forEach(jvm => (jvm.includes('=') && jvm.startsWith('-')) && jvm.replaceAll(' ', ''))
+            const processedGameArgs: string[] = []
+            for (let arg of gameArguments) {
+                if (typeof arg !== 'string') {
                     continue
                 }
-                else if (typeof arg === 'number') {
-                    arg = arg.toString()
-                }
-                gameArgs.push(this.replaceTemplate(arg, argumentMap))
+                processedGameArgs.push(this.replaceTemplate(arg, argumentMap))
             }
-            const mainClass = versionJson.mainClass
-            return { mainClass, jvmArgs, gameArgs }
-
+            const mainClass = this.versionJson.mainClass
+            console.log(processedJvmArgs)
+            return { mainClass, jvmArgs: processedJvmArgs, gameArgs: processedGameArgs }
         } catch (error) {
             console.error(error)
             throw error
         }
+    }
+
+    private _buildVMArguments(): Array<string> {
+        const buildJvmArguments: string[] = []
+        const versionJvmArguments: string[] = this.versionJson.arguments?.jvm.filter(i => typeof i === 'string') || []
+        if (this.OSINFO.platform === 'darwin') {
+            versionJvmArguments.push("-XstartOnFirstThread")
+        }
+        buildJvmArguments.push(...versionJvmArguments)
+        // 默认参数
+        if (this.launchOptions.useDefaultJvmArguments ?? true) {
+            buildJvmArguments.push(...LaunchBase.DEFAULT_JVM_ARGS)
+        }
+        // 自定义参数
+        if (this.launchOptions?.customJvmArguments && this.launchOptions.customJvmArguments.length) {
+            for (const arg of this.launchOptions.customJvmArguments) {
+                const trimmedArg = arg.trim()
+                if (trimmedArg) {
+                    buildJvmArguments.push(trimmedArg)
+                }
+            }
+        }
+        //是否已经设置了GC
+        let isGCSet: boolean = false
+        for (const arg of buildJvmArguments) {
+            if (/^(-XX:\+?)Use.*(GC)$/.test(arg)) {
+                isGCSet = true
+                break
+            }
+        }
+        if (!isGCSet) {
+            // 当前没有GC设置的时候
+            if (this.launchOptions.jvmGC) {
+                buildJvmArguments.push(`-XX:+Use${this.launchOptions.jvmGC}`)
+            } else {
+                buildJvmArguments.push('-XX:+UseG1GC')
+            }
+        }
+        else {
+            console.log("参数已经存在GC,默认GC与预设的GC将会被跳过")
+        }
+        // 设置内存分配 - 默认参数没有，如果自定义参数已经设置了，这里应该会被检测到
+        let isXmxSet: boolean = false
+        let isXmsSet: boolean = false
+        let isXssSet: boolean = false
+
+        for (const arg of buildJvmArguments) {
+            if (arg.startsWith('-Xmx')) { isXmxSet = true }
+            else if (arg.startsWith('-Xms')) { isXmsSet = true }
+            else if (arg.startsWith('-Xss')) { isXssSet = true }
+        }
+
+        if (!isXmxSet) { buildJvmArguments.push("-Xmx${vmxmx}M") }
+        if (!isXmsSet) { buildJvmArguments.push("-Xms${vmxms}M") }
+        if (!isXssSet && this.OSINFO.arch === 'ia32') { buildJvmArguments.push('-Xss1M') }
+
+        return buildJvmArguments
+    }
+
+    private _buildGameArguments(): Array<string> {
+        const gameArguments: string[] = []
+
+        if (this.versionJson.arguments?.game && Array.isArray(this.versionJson.arguments.game)) {
+            gameArguments.push(...this.versionJson.arguments.game)
+        }
+        else if (this.versionJson.minecraftArguments) {
+            gameArguments.push(...this.versionJson.minecraftArguments.split(' ').map(i => i.trim()))
+        }
+        else {
+            gameArguments.push(...LaunchBase.DEFAULT_GAME_ARGS)
+        }
+        if (this.launchOptions.windowWidth) {
+            gameArguments.push('--width', String(this.launchOptions.windowWidth))
+        }
+        if (this.launchOptions.windowHeight) {
+            gameArguments.push('--height', String(this.launchOptions.windowHeight))
+        }
+        if (this.launchOptions.demo) {
+            gameArguments.push('--demo')
+        }
+        if (this.launchOptions.entryServer) {
+            gameArguments.push('--quickPlayMultiplayer', this.launchOptions.entryServer)
+        }
+
+        if (this.launchOptions.customGameArguments) {
+            for (const [key, value] of Object.entries(this.launchOptions.customGameArguments)) {
+                if (!gameArguments.includes(key)) {
+                    gameArguments.push(key)
+                    value && gameArguments.push(value)
+                }
+            }
+        }
+
+        return gameArguments
+
     }
 
     public async resolveJavaRuntime(): Promise<string | null> {
@@ -537,10 +593,15 @@ export default abstract class LaunchBase extends EventEmitter {
         }
         this.javaInfo = await JavaVersionDetector.getJavaInfo(javaExecutablePath, this.OSINFO.platform)
         console.log("已使用java", javaExecutablePath)
+        this.gameMemoryDistribution()
+        this.javaExecutablePath = javaExecutablePath
+        this.createLaunchDetailLog()
+    }
 
-        //当设置自动内存分配 或者 没有手动分配内存的时候
-        //进行自动内存分配
-        if (this.launchOptions.autoMemDistribution || !this.launchOptions.memDistribution) {
+    private gameMemoryDistribution() {
+        //最大内存分配
+        let XMX: number
+        if (this.launchOptions.vmxmx === 'auto' || !this.launchOptions.vmxmx) {
             let modCount = 0
             if (fs.existsSync(path.join(this.versionPath, 'mods'))) {
                 modCount = fs.readdirSync(path.join(this.versionPath, 'mods')).filter(i => path.extname(i) === '.jar').length
@@ -552,12 +613,20 @@ export default abstract class LaunchBase extends EventEmitter {
             if (!this.javaInfo?.is64bit) {
                 distributeMemoryMB = Math.min(distributeMemoryMB, 2048)
             }
-            this.launchOptions.memDistribution = distributeMemoryMB
+            this.vmMemDistribution.xmx = distributeMemoryMB
+            XMX = distributeMemoryMB
         }
-        console.log("内存分配", this.launchOptions.memDistribution)
-        this.javaExecutablePath = javaExecutablePath
-
-        this.createLaunchDetailLog()
+        else {
+            this.vmMemDistribution.xmx = this.launchOptions.vmxmx
+            XMX = this.launchOptions.vmxmx
+        }
+        //初始内存分配
+        if (this.launchOptions.vmxms === 'auto' || !this.launchOptions.vmxms) {
+            this.vmMemDistribution.xms = XMX
+        }
+        else {
+            this.vmMemDistribution.xms = this.launchOptions.vmxms
+        }
     }
 
     protected failedLaunch(error: Error) {
@@ -769,10 +838,125 @@ export default abstract class LaunchBase extends EventEmitter {
             javaVendor: this.javaInfo?.vendor,
             "64bit-java": this.javaInfo?.is64bit,
             lwjgl: this.launchOptions.lwjglNativesDirectory,
-            memHeap: this.launchOptions.memDistribution,
-            memLow: this.launchOptions.memLow,
+            mem: this.vmMemDistribution
         }
         console.log(launchDetail)
         return launchDetail
+    }
+
+    private createTestAuthetication(): LaunchAuthOptions {
+        /**
+         * Hey,Just For Fun
+         */
+        const nicknames: string[] = [
+            "CyberPunk_2077",
+            "Neo_Matrix",
+            "Zero_Cool",
+            "Crypto_Ninja",
+            "Quantum_Leap",
+            "Binary_Beast",
+            "Firewall_Guard",
+            "Data_Stream",
+            "Cyber_Warrior",
+            "Ghost_In_Shell",
+            "Dragon_Slayer",
+            "Shadow_Walker",
+            "Phoenix_Rising",
+            "Thunder_God",
+            "Moonlight_Wolf",
+            "Ice_Queen_07",
+            "Dark_Knight_X",
+            "Storm_Bringer",
+            "Fire_Demon_666",
+            "Star_Gazer99",
+            "One_Punch_Man",
+            "Death_Note_42",
+            "Cyberpunk_Edgerunner",
+            "Gundam_Wing",
+            "Final_Fantasy7",
+            "Street_Fighter2",
+            "MegaMan_X",
+            "Sonic_Hedgehog",
+            "Link_Hyrule",
+            "Samurai_Jack",
+            "Silver_Fox",
+            "Red_Panda_007",
+            "Black_Panther",
+            "Golden_Eagle",
+            "Ocean_Whisper",
+            "Mountain_Lion",
+            "Desert_Fox_99",
+            "Arctic_Wolf",
+            "Thunder_Bird",
+            "Shadow_Cat",
+            "Chocolate_Chip",
+            "Espresso_Shot",
+            "Sushi_Master",
+            "Bubble_Tea_88",
+            "Hot_Sauce_420",
+            "Cookie_Monster",
+            "Whiskey_Sour",
+            "Pizza_Ninja",
+            "Taco_Bandit",
+            "Burger_King99",
+            "Alpha_Omega",
+            "Xenon_548",
+            "Z3R0_C00L",
+            "V1rus_Total",
+            "M4ster_Mind",
+            "C0D3_Br34k3r",
+            "L33t_H4x0r",
+            "N3rd_C0r3",
+            "R0b0t_L0v3r",
+            "G33k_Squad",
+            "Silent_Assassin",
+            "Lucky_Charm_77",
+            "Crazy_Diamond",
+            "Wild_Child_X",
+            "Iron_Fist_99",
+            "Golden_Touch",
+            "Midnight_Rider",
+            "Electric_Dream",
+            "Cosmic_Joker",
+            "Digital_Nomad",
+            "Phantom_X",
+            "Vortex_9",
+            "Nova_Star",
+            "Zen_Master",
+            "Rogue_One",
+            "Blaze_420",
+            "Frost_Bite",
+            "Viper_Strike",
+            "Titan_Prime",
+            "Orion_Belt",
+            "Error_404",
+            "Ctrl_Alt_Del",
+            "Stack_Overflow",
+            "Infinite_Loop",
+            "Syntax_Error",
+            "Null_Pointer",
+            "Seg_Fault_11",
+            "Cache_Miss",
+            "Buffer_Overflow",
+            "Race_Condition",
+            "Iron_Man_3",
+            "Batman_2022",
+            "Stranger_Things",
+            "Game_Of_Thrones",
+            "Star_Wars_77",
+            "Lord_Of_Rings",
+            "Matrix_Reloaded",
+            "Pink_Floyd_42",
+            "Metallica_Fan",
+            "Queen_Band_77",
+            "Komeijilune",
+            "Kiyonatsuki"
+        ];
+        const playerName = nicknames[Math.floor(Math.random() * nicknames.length)]
+        return {
+            accessToken: 'FFFFFFFFFF',
+            username: playerName,
+            uuid: randomUUID().replaceAll('-', '')
+        }
     }
 }

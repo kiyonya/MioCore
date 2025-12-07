@@ -8,7 +8,7 @@ export default class LaunchLinux extends LaunchBase {
         super(createOptions, launchOptions);
     }
 
-    public async launch(launchAuthOptions: LaunchAuthOptions): Promise<number> {
+    public async launch(launchAuthOptions?: LaunchAuthOptions): Promise<number> {
         try {
             this.checkCancelSignal();
             this.startStatusInterval();

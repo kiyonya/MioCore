@@ -32,8 +32,8 @@ export type InstanceInfoStruct = {
   minecraftPath: string
   versionIsolation: boolean
   version: string,
-  moments:string[],
-  pathes:Partial<Record< "mods"|"version"|"screenshots"|"saves",string>>
+  moments: string[],
+  pathes: Partial<Record<"mods" | "version" | "screenshots" | "saves", string>>
 }
 
 type SaveInfo = {
@@ -135,7 +135,7 @@ export default abstract class InstanceUtil {
     versionIsolation: boolean = true
   ): Promise<InstanceInfoStruct> {
 
-    if(!fs.existsSync(instanceDir) || !fs.existsSync(minecraftPath)){
+    if (!fs.existsSync(instanceDir) || !fs.existsSync(minecraftPath)) {
       throw new DirNotFoundException('无效文件夹')
     }
 
@@ -158,9 +158,9 @@ export default abstract class InstanceUtil {
       minecraftPath: minecraftPath,
       versionIsolation: versionIsolation,
       version: '',
-      moments:[],
-      pathes:{
-        version:instanceDir
+      moments: [],
+      pathes: {
+        version: instanceDir
       },
     }
 
@@ -210,7 +210,7 @@ export default abstract class InstanceUtil {
     }
     //截图统计
     if (fs.existsSync(path.join(instanceDir, 'screenshots'))) {
-      
+
       //先检查截图个数
       const screenshots = fs
         .readdirSync(path.join(instanceDir, 'screenshots'))
@@ -219,7 +219,7 @@ export default abstract class InstanceUtil {
 
       instanceInfo.screenshotsCount = screenshots.length
       instanceInfo.background = screenshots?.[0] || null
-      instanceInfo.moments = screenshots.slice(0,4)
+      instanceInfo.moments = screenshots.slice(0, 4)
       instanceInfo.pathes.screenshots = path.join(instanceDir, 'screenshots')
     }
     //存档统计
@@ -332,7 +332,6 @@ export default abstract class InstanceUtil {
     const resourcePackInfoPromises = resourcePacks.map(rp => limit(() => this.readResourcePackInfoOf(rp)))
     const resourcePacksInfo = await Promise.all(resourcePackInfoPromises)
     return resourcePacksInfo
-
   }
 
   public static async readResourcePackInfoOf(resourcePackPath: string): Promise<ResourcePackInfo> {

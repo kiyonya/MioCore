@@ -2,7 +2,7 @@ import path from "path";
 import fs from 'fs'
 import iconv from 'iconv-lite'
 
-import {type LaunchOptions } from "../types/index.ts";
+import { type LaunchOptions } from "../types/index.ts";
 import LaunchBase, { type LauncherCreateOptions, type LaunchAuthOptions } from "./launch_base.ts";
 import WinDetectAddon from "../addon/windetect/index.ts";
 
@@ -15,7 +15,7 @@ export default class LaunchWindows extends LaunchBase {
         super(createOptions, launchOptions);
     }
 
-    public async launch(launchAuthOptions: LaunchAuthOptions): Promise<number> {
+    public async launch(launchAuthOptions?: LaunchAuthOptions): Promise<number> {
         try {
             this.checkCancelSignal();
             this.startStatusInterval();

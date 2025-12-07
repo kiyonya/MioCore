@@ -38,12 +38,11 @@ export interface MinecraftClientInstallerOptions {
     name: string,
     version: string,
     modLoader?: Partial<Record<"forge" | "fabric" | "neoforge" | "quilt" | 'fabricapi', string>> | null,
-    java?: string,
-    mirrorFirst?: boolean,
-    useMojangJavaRuntime?: boolean
+    javaExecutablePath?: string,
 }
 
 export interface InstallConfig {
+    mirrorFirst?: boolean,
     useMojangJavaRuntime?: boolean
 }
 
@@ -93,7 +92,6 @@ export default class MinecraftClientInstaller extends EventEmitter {
     public speed: Record<string, number> = {}
     public side: "client" = 'client'
     public javaExecutablePath?: string
-    public mirrorFirst: boolean = false
     public statusEmitInterval: NodeJS.Timeout | null = null
     public installConfig?: InstallConfig
 
@@ -115,8 +113,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
         this.versionJsonPath = path.join(this.versionPath, `${options.name}.json`);
 
         this.modLoader = options.modLoader;
-        this.javaExecutablePath = options.java
-        this.mirrorFirst = options.mirrorFirst || false
+        this.javaExecutablePath = options.javaExecutablePath
     }
 
     public async install() {
@@ -221,10 +218,6 @@ export default class MinecraftClientInstaller extends EventEmitter {
         await Promise.all(installPromises)
         //完成
         this.endStatusEmitInterval()
-        for (let key of Object.keys(this.progress)) {
-            this.progress[key] = 1
-        }
-        this.emit('progress', this.progress)
         this.removeAllListeners()
 
         const MMLDataJson = {
@@ -351,7 +344,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
                 Promise.all(modLoaderGatherPromises).then(taskArray => {
                     const flatTasks = taskArray.flat()
 
-                    const modLoaderLibsDownloader = new ConcDownloader(50)
+                    const modLoaderLibsDownloader = new ConcDownloader(this.OSINFO.cpus.length / 2)
 
                     modLoaderLibsDownloader.on('progress', (p: number) => {
                         this.progress.modLoaderLibs = p
@@ -362,7 +355,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
                     })
 
                     for (const f of flatTasks) {
-                        modLoaderLibsDownloader.add(new DownloadTask(Mirror.getMirrors(f.url, this.mirrorFirst), f.path, f.sha1, false))
+                        modLoaderLibsDownloader.add(new DownloadTask(Mirror.getMirrors(f.url, this.installConfig?.mirrorFirst), f.path, f.sha1, false))
                     }
                     resolve(modLoaderLibsDownloader)
                 })
@@ -407,7 +400,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
             })
         }
 
-        const vanlliaLibsDownloader = new ConcDownloader(50)
+        const vanlliaLibsDownloader = new ConcDownloader(this.OSINFO.cpus.length / 2)
 
         vanlliaLibsDownloader.on("progress", (p) => {
             this.progress.vanlliaLibs = p;
@@ -418,7 +411,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
         })
 
         for (const task of vanlliaLibsTasks) {
-            vanlliaLibsDownloader.add(new DownloadTask(Mirror.getMirrors(task.url, this.mirrorFirst), task.path, task.sha1, false))
+            vanlliaLibsDownloader.add(new DownloadTask(Mirror.getMirrors(task.url, this.installConfig?.mirrorFirst), task.path, task.sha1, false))
         }
         return vanlliaLibsDownloader
     }
@@ -441,7 +434,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
             });
         }
 
-        const vanlliaAssetsDownloader = new ConcDownloader(100)
+        const vanlliaAssetsDownloader = new ConcDownloader(this.OSINFO.cpus.length / 2)
 
         vanlliaAssetsDownloader.on("progress", (p) => {
             this.progress.vanlliaAssets = p;
@@ -452,7 +445,7 @@ export default class MinecraftClientInstaller extends EventEmitter {
         })
 
         for (const task of vanlliaAssetsTasks) {
-            vanlliaAssetsDownloader.add(new DownloadTask(Mirror.getMirrors(task.url, this.mirrorFirst), task.path, task.sha1, false))
+            vanlliaAssetsDownloader.add(new DownloadTask(Mirror.getMirrors(task.url, this.installConfig?.mirrorFirst), task.path, task.sha1, false))
         }
 
         return vanlliaAssetsDownloader
@@ -718,6 +711,9 @@ export default class MinecraftClientInstaller extends EventEmitter {
     }
 
     private endStatusEmitInterval() {
+        for (let key of Object.keys(this.progress)) {
+            this.progress[key] = 1
+        }
         this.emit('progress', this.progress)
         this.emit('speed', this.speed)
         if (this.statusEmitInterval) {

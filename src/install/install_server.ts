@@ -18,7 +18,6 @@ import JavaRuntimeInstaller from "../java/java_runtime_installer.ts";
 
 import { type MinecraftVersionJson, type DownloadTaskItem } from '../types/index.ts'
 import { getSystemInfo } from "../utils/os.ts";
-import { JavaRuntimeResolver } from "../java/java_runtime_resolver.ts";
 import NameMap from "../format/namemap.ts";
 
 interface MinecraftServerInstallerOptions {
@@ -283,40 +282,68 @@ export default class MinecraftServerInstaller extends EventEmitter {
     }
 
     private async resolveJavaRuntime(versionJson: MinecraftVersionJson): Promise<string | null> {
-
-        let requiredJavaRuntimeVersion = String(versionJson.javaVersion?.majorVersion) || '8'
-        let requiredJVMVersion = requiredJavaRuntimeVersion === "8" ? '1.8.0' : requiredJavaRuntimeVersion
-
-        const localJavaExecutablePath = path.join(this.serverPath, 'java', `${this.OSINFO.platform}-${this.OSINFO.arch}`, String(requiredJavaRuntimeVersion))
-
-        let javaExecutablePath: string | null = null
-
-        if (this.javaExecutablePath) {
-            const isUserSelectedJavaAvailable = await JavaRuntimeResolver.isJavaValid(this.javaExecutablePath, requiredJVMVersion)
-            if (isUserSelectedJavaAvailable) {
-                javaExecutablePath = this.javaExecutablePath
-            }
-        } else {
-            //查找或者安装java了
-            const localJavaPath: string = this.OSINFO.platform === 'win32' ? path.join(localJavaExecutablePath, 'bin', 'java.exe') : localJavaExecutablePath
-            const isLocalJavaAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
-            if (isLocalJavaAvailable) {
-                //本地可用就用本地的了
-                javaExecutablePath = localJavaPath
-            }
-            else {
-                //在本地安装java
-                const runtimeVersion = versionJson.javaVersion?.component || 'jre-legacy'
-                const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
-                const installedJavaHome: string = await javaRuntimeInstaller.install()
-                javaRuntimeInstaller.removeAllListeners()
-                //检查安装完成的java是否可以用
-                const isInstalledJavaExecutablePathAvailable = await JavaRuntimeResolver.isJavaValid(localJavaPath, requiredJVMVersion)
-                if (isInstalledJavaExecutablePathAvailable) {
-                    javaExecutablePath = localJavaPath
+    
+            let requiredJavaRuntimeVersion = String(versionJson.javaVersion?.majorVersion) || '8'
+            let requiredJVMVersion = requiredJavaRuntimeVersion === "8" ? '1.8.0' : requiredJavaRuntimeVersion
+    
+            const localJavaExecutablePath = path.join(this.minecraftPath, 'java', `${this.OSINFO.platform}-${this.OSINFO.arch}`, String(requiredJavaRuntimeVersion))
+    
+            let javaExecutablePath: string | null = null
+    
+            if (this.javaExecutablePath) {
+                this.progress['checking-java'] = 0
+                const isUserSelectedJavaAvailable = await JavaExecutor.isJavaValid(this.javaExecutablePath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
+                if (isUserSelectedJavaAvailable) {
+                    javaExecutablePath = this.javaExecutablePath
                 }
             }
+    
+            //没有用户选择的java或者用户选择的java不可用
+            if (!javaExecutablePath) {
+                //查找或者安装java
+                let localJavaPath: string = ''
+                switch (this.OSINFO.platform) {
+                    case 'win32':
+                        localJavaPath = path.join(localJavaExecutablePath, 'bin', 'java.exe')
+                        break;
+                    case 'linux':
+                        localJavaPath = path.join(localJavaExecutablePath, 'bin', 'java')
+                        break;
+                    case 'darwin':
+                        localJavaPath = path.join(localJavaExecutablePath, 'Contents', 'Home', 'bin', 'java')
+                        break;
+                    default:
+                        throw new Error(`不支持的操作系统平台: ${this.OSINFO.platform}`);
+                }
+                const isLocalJavaAvailable = await JavaExecutor.isJavaValid(localJavaPath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
+                if (isLocalJavaAvailable) {
+                    //本地可用就用本地的了
+                    javaExecutablePath = localJavaPath
+                }
+                else {
+                    if (this.installConfig?.useMojangJavaRuntime) {
+                        const runtimeVersion = versionJson.javaVersion?.component || 'jre-legacy'
+                        const javaRuntimeInstaller = new JavaRuntimeInstaller(runtimeVersion, localJavaExecutablePath, NameMap.getMojangJavaOSIndex(this.OSINFO.platform, this.OSINFO.arch))
+                        this.activeJavaRuntimeInstaller = javaRuntimeInstaller
+                        javaRuntimeInstaller.on('progress', (p) => { this.progress['install-java'] = p })
+                        javaRuntimeInstaller.on('speed', (s) => { this.speed['install-java'] = s })
+                        await javaRuntimeInstaller.install()
+                        javaRuntimeInstaller.removeAllListeners()
+                    }
+                    else {
+                        
+                        const jdkInstaller = new JDKInstaller(localJavaExecutablePath, requiredJavaRuntimeVersion, this.OSINFO.platform, this.OSINFO.arch)
+                        this.activeJavaRuntimeInstaller = jdkInstaller
+                        await jdkInstaller.install()
+                        jdkInstaller.removeAllListeners()
+                    }
+                    //检查安装完成的java是否可以用
+                    const isInstalledJavaExecutablePathAvailable = await JavaExecutor.isJavaValid(localJavaPath, requiredJVMVersion, this.OSINFO.platform, this.OSINFO.arch)
+                    if (isInstalledJavaExecutablePathAvailable) {
+                        javaExecutablePath = localJavaPath
+                    }
+                }
+            }
+            return javaExecutablePath
         }
-        return javaExecutablePath
-    }
 }
