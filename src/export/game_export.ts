@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import InstanceUtil, { type InstanceInfoStruct } from '../modules/game/instance_util.ts'
+import InstanceUtil, { type InstanceInfoStruct } from '../game/instance_util.ts'
 import HashUtil from '../utils/hash.ts'
 import ModrinthAPI from '../community/modrinth.ts'
 import AdmZip from 'adm-zip'
@@ -67,7 +67,9 @@ export type CurseforgeManifestJSON = {
 }
 
 
-
+/**
+ * @deprecated
+ */
 export default class GameExport {
 
     public versionPath: string
@@ -278,8 +280,5 @@ export default class GameExport {
             })
         }
         )))
-
-
-
     }
 }   
