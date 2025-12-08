@@ -1,4 +1,4 @@
-﻿import HashUtil from "../../utils/hash.ts"
+﻿import HashUtil from "../utils/hash.ts"
 import { CATEGLORIES } from "./cates.ts"
 import CurseforgeAPI, { type CurseforgeFile, type CurseforgeResourceDetail, type CurseForgeSearchOptions } from "./curseforge.ts"
 import { Lang } from "./lang.ts"

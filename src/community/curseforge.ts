@@ -160,15 +160,17 @@ export interface CurseforgeMatchItem {
 }
 
 export interface CurseforgeModFingerprintMatchResult {
-    exactFingerprints: Array<number>
-    exactMatches: Array<CurseforgeMatchItem>
-    installedFingerprints: Array<number>
-    isCacheBuilt: boolean
-    partialMatchFingerprints: {
-        [key: string]: Array<number>
+    data: {
+        exactFingerprints: Array<number>
+        exactMatches: Array<CurseforgeMatchItem>
+        installedFingerprints: Array<number>
+        isCacheBuilt: boolean
+        partialMatchFingerprints: {
+            [key: string]: Array<number>
+        }
+        partialMatches: Array<CurseforgeMatchItem>
+        unmatchedFingerprints: Array<number> | null
     }
-    partialMatches: Array<CurseforgeMatchItem>
-    unmatchedFingerprints: Array<number> | null
 }
 
 export interface CurseforgeResourceDetail {
@@ -207,9 +209,9 @@ export default class CurseforgeAPI {
     constructor(apiKey: string) {
         console.log('Curseforge API Key:', apiKey)
 
-        this.apiHost = 'https://mod.mcimirror.top/curseforge/'
+        this.apiHost = 'https://api.curseforge.com/'
         this.client = axios.create({
-            baseURL: 'https://mod.mcimirror.top/curseforge/',
+            baseURL: 'https://api.curseforge.com/',
             headers: {
                 'x-api-key': apiKey,
                 'Content-Type': 'application/json'
@@ -271,7 +273,7 @@ export default class CurseforgeAPI {
         classId?: number,
         classOnly?: boolean
     ): Promise<{ data: Array<CurseforgeCategory> }> {
-        const url = new URL('/v1/categories', "https://api.curseforge.com/")
+        const url = new URL('/v1/categories', this.apiHost)
         url.searchParams.append('gameId', '432')
         classId && url.searchParams.append('classId', String(classId))
         classOnly && url.searchParams.append('classOnly', String(classOnly))
@@ -293,7 +295,7 @@ export default class CurseforgeAPI {
         modIds: string | string[],
         pcOnly: boolean = true
     ): Promise<{ data: Array<CurseforgeResourceDetail> }> {
-        const modIdsArray: number[] = (typeof modIds === 'string' ? [modIds] : modIds).map(i=>Number(i))
+        const modIdsArray: number[] = (typeof modIds === 'string' ? [modIds] : modIds).map(i => Number(i))
         return this.requestWithRetry<{ data: Array<CurseforgeResourceDetail> }>({
             method: 'post',
             url: 'v1/mods',
