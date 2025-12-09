@@ -6,7 +6,7 @@ import { checkOSRules } from "../utils/os.ts"
 import Request from "../utils/request.ts"
 import HashUtil from "../utils/hash.ts"
 import pLimit from "p-limit"
-import InstanceUtil from "../game/instance_util.ts"
+import InstanceManager from "../game/instance_manager.ts"
 import EventEmitter from "events"
 
 export interface GameCompletenessCheckerOptions {
@@ -103,7 +103,7 @@ export default class GameCompletenessChecker extends EventEmitter {
             throw new Error('Missing version json')
         }
 
-        const instanceInfo = await InstanceUtil.readInstanceOf(this.versionPath, this.minecraftPath, this.versionIsolation)
+        const instanceInfo = await InstanceManager.getInstanceInfo(this.versionPath, this.minecraftPath, this.versionIsolation)
         const versionJSON: MinecraftVersionJson = JSON.parse(fs.readFileSync(this.versionJSONPath, 'utf-8'))
 
         //GameJar

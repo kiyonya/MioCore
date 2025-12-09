@@ -4,7 +4,7 @@ import ModrinthAPI from "../community/modrinth.ts";
 import HashUtil from "../utils/hash.ts";
 import AdmZip from "adm-zip";
 import fs from 'fs'
-import InstanceUtil, { type InstanceInfoStruct } from "../game/instance_util.ts";
+import InstanceManager, { type InstanceInfo } from "../game/instance_manager.ts";
 import CurseforgeAPI, { type CurseforgeModFingerprintMatchResult } from "../community/curseforge.ts";
 import FileUtil from "../utils/file.ts";
 import pLimit from "p-limit";
@@ -161,7 +161,7 @@ export default class ModpackExport extends EventEmitter {
     }
     public async export(entries: ExportEntry[], packType: PackageType, exportOptions?: ExportOptions): Promise<AdmZip> {
         try {
-            const instanceInfo: InstanceInfoStruct = await InstanceUtil.readInstanceOf(this.versionPath, this.minecraftPath, this.versionIsolation)
+            const instanceInfo: InstanceInfo = await InstanceManager.getInstanceInfo(this.versionPath, this.minecraftPath, this.versionIsolation)
 
             console.log(instanceInfo)
 
@@ -184,7 +184,7 @@ export default class ModpackExport extends EventEmitter {
         }
     }
     //modrinth导出
-    private async modrinthModpackExport(instanceInfo: InstanceInfoStruct, exportEntries: ExportEntry[], options?: ExportOptions): Promise<AdmZip> {
+    private async modrinthModpackExport(instanceInfo: InstanceInfo, exportEntries: ExportEntry[], options?: ExportOptions): Promise<AdmZip> {
         const modrinthIndexJSON: ModrinthIndexJSON = {
             game: 'minecraft',
             formatVersion: 1,
@@ -233,7 +233,7 @@ export default class ModpackExport extends EventEmitter {
                 }
             }
             if (entry.entryName === 'mods') {
-                let modFiles: Array<string> = await InstanceUtil.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
+                let modFiles: Array<string> = await InstanceManager.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
                 if (options?.online ?? true) {
                     const matchResult = await this.onlineMatchModrinthMods(modFiles)
                     const dismatched: string[] = []
@@ -296,7 +296,7 @@ export default class ModpackExport extends EventEmitter {
         return matchResult
     }
     //curseforge的导出
-    private async curseforgeModpackExport(instanceInfo: InstanceInfoStruct, exportEntries: ExportEntry[], options?: ExportOptions): Promise<AdmZip> {
+    private async curseforgeModpackExport(instanceInfo: InstanceInfo, exportEntries: ExportEntry[], options?: ExportOptions): Promise<AdmZip> {
 
         const curseforgeManifestJSON: CurseforgeManifestJSON = {
             minecraft: {
@@ -327,7 +327,7 @@ export default class ModpackExport extends EventEmitter {
                 }
             }
             if (entry.entryName === 'mods') {
-                let modFiles: Array<string> = await InstanceUtil.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
+                let modFiles: Array<string> = await InstanceManager.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
                 if (options?.online ?? true) {
                     const matchResult = await this.onlineMatchCurseforgeMods(modFiles)
                     const dismatched: string[] = []
@@ -412,7 +412,7 @@ export default class ModpackExport extends EventEmitter {
         return this.curseforgeAPI
     }
     //组合形Modrinth
-    private async extraModrinthModpackExport(instanceInfo: InstanceInfoStruct, exportEntries: ExportEntry[], options?: ExportOptions): Promise<AdmZip> {
+    private async extraModrinthModpackExport(instanceInfo: InstanceInfo, exportEntries: ExportEntry[], options?: ExportOptions): Promise<AdmZip> {
         const modrinthIndexJSON: ModrinthIndexJSON = {
             game: 'minecraft',
             formatVersion: 1,
@@ -461,7 +461,7 @@ export default class ModpackExport extends EventEmitter {
                 }
             }
             if (entry.entryName === 'mods') {
-                let modFiles: Array<string> = await InstanceUtil.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
+                let modFiles: Array<string> = await InstanceManager.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
                 if (options?.online ?? true) {
                     const modrinthMatchResult = await this.onlineMatchModrinthMods(modFiles)
                     const curseforgeMatchResult = await this.onlineMatchCurseforgeMods(modFiles)
@@ -508,7 +508,7 @@ export default class ModpackExport extends EventEmitter {
         return zip
     }
     //MCBBS
-    private async mcbbsModpackExport(instanceInfo: InstanceInfoStruct, exportEntries: ExportEntry[], options?: ExportOptions) {
+    private async mcbbsModpackExport(instanceInfo: InstanceInfo, exportEntries: ExportEntry[], options?: ExportOptions) {
 
         const mcbbsPackMeta: MCBBSPackMeta = {
             author: options?.packageAuthor,

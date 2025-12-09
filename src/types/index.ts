@@ -31,6 +31,15 @@ export type PassRule =
     }
   }
 
+export interface IMMLID {
+    modLoader?: Record<string, string> | null,
+    gameVersion?: string,
+    name?: string,
+    installTime?: number,
+    playTime?: number,
+    latestRun?: number,
+}
+
 export interface MinecraftLib {
   name: string;
   downloads?: {
@@ -88,6 +97,22 @@ export interface MinecraftVersionJson {
   minecraftArguments: string,
   assets: number,
   mainClass: string,
+  patches?: {
+    id: string,
+    version: string,
+    arguments?: {
+      game: string[],
+      jvm: Array<
+        ({
+          rules?: Array<PassRule>,
+          value: string
+        }) | string
+      >
+    },
+    mainClass?: string
+  }[],
+
+  mmlid?:IMMLID
 }
 
 export interface MinecraftAssetsJson {
@@ -286,15 +311,4 @@ export type ModrinthIndexJson = {
     fabric?: string,
     neoforge?: string,
   }
-}
-
-export type MMLDataJson = {
-  playTime?: number,
-  latestRun?: number,
-  version: string,
-  modLoader?: Record<string, string> | null,
-  name?: string,
-  mmlVersion?: number,
-  installTime: number,
-  installTimeUTC: string
 }

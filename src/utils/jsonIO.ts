@@ -19,8 +19,8 @@ export default class JSONIO {
         return this
     }
 
-    public toObject(): Record<string, any> {
-        return this.data
+    public toObject<T>(): T {
+        return this.data as T
     }
 
     public modify(keyAddr: string, value: any): this {
