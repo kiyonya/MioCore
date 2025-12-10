@@ -1,5 +1,5 @@
 export default class Mirror {
-    public static readonly MirrorList: { [K: string]: string[] } = {
+    public static readonly MirrorList: Record<string, string[]> = {
         "http://resources.download.minecraft.net": ["https://bmclapi2.bangbang93.com/assets"],
         "https://libraries.minecraft.net": ["https://bmclapi2.bangbang93.com/maven"],
         "https://files.minecraftforge.net/maven": ["https://bmclapi2.bangbang93.com/maven"],
