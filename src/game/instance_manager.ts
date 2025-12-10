@@ -11,7 +11,7 @@ import { type MinecraftVersionJson } from '../types/index.ts'
 import { existify, getDirSize, getFileNameFromPath } from '../utils/io.ts'
 import ModActions from './mod_actions.ts'
 
-export type InstanceInfo = {
+export interface InstanceInfo {
     icon: string | null
     name: string
     path: string
@@ -41,7 +41,7 @@ type SaveInfo = {
     size: number
 }
 
-type ModInfo = {
+export type ModInfo = {
     name: string
     modId: string
     version: string
@@ -140,7 +140,7 @@ export default abstract class InstanceManager {
         const instanceName = path.basename(instanceDir)
         const instanceInfo: InstanceInfo = {
             name: instanceName,
-            path: instanceDir,
+            path: instanceDir.replaceAll('\\', '/'),
             pathMD5: HashUtil.md5OfString(instanceDir),
             modsCount: 0,
             installTime: 0,
@@ -152,19 +152,19 @@ export default abstract class InstanceManager {
             icon: null,
             ok: false,
             canInstallMod: false,
-            minecraftPath: minecraftPath,
+            minecraftPath: path.resolve(minecraftPath).replaceAll('\\', '/'),
             versionIsolation: versionIsolation,
             version: '',
             moments: [],
             pathes: {
-                version: instanceDir
+                version: instanceDir.replaceAll('\\', '/')
             },
         }
         //获取图标
         const iconPathes = this.IMG_EXTEND_NAME.map(extendName => path.join(instanceDir, `icon${extendName}`))
         for (const iconPath of iconPathes) {
             if (fs.existsSync(iconPath)) {
-                instanceInfo.icon = iconPath
+                instanceInfo.icon = iconPath.replaceAll('\\', '/')
                 break
             }
         }
@@ -172,7 +172,7 @@ export default abstract class InstanceManager {
         if (fs.existsSync(path.join(instanceDir, 'mods'))) {
             const mods = await this.readModDir(path.join(instanceDir, 'mods'))
             instanceInfo.modsCount = mods.length
-            instanceInfo.pathes.mods = path.join(instanceDir, 'mods')
+            instanceInfo.pathes.mods = path.join(instanceDir, 'mods').replaceAll('\\', '/')
         }
         //截图统计
         if (fs.existsSync(path.join(instanceDir, 'screenshots'))) {
@@ -186,14 +186,14 @@ export default abstract class InstanceManager {
             instanceInfo.screenshotsCount = screenshots.length
             instanceInfo.background = screenshots?.[0] || null
             instanceInfo.moments = screenshots.slice(0, 4)
-            instanceInfo.pathes.screenshots = path.join(instanceDir, 'screenshots')
+            instanceInfo.pathes.screenshots = path.join(instanceDir, 'screenshots').replaceAll('\\', '/')
         }
         //存档统计
         if (fs.existsSync(path.join(instanceDir, 'saves'))) {
             const savesDir = path.join(instanceDir, 'saves')
             const saves = await this.readSavesFromDir(savesDir)
             instanceInfo.saves = saves
-            instanceInfo.pathes.saves = path.join(instanceDir, 'saves')
+            instanceInfo.pathes.saves = path.join(instanceDir, 'saves').replaceAll('\\', '/')
         }
         //检查基本文件是否存在
         if (fs.existsSync(path.join(instanceDir, `${instanceName}.json`)) &&
