@@ -9,7 +9,7 @@ import { existify, mavenToPath } from "../utils/io.ts";
 import { checkOSRules, getSystemInfo, type OSInfo } from "../utils/os.ts";
 import { FileNotFoundException } from "../error.ts";
 import JSONIO from "../utils/jsonIO.ts";
-import GameCompletenessChecker from "../game_opration/complete_checker.ts";
+import GameCompletenessChecker from "../check/complete_checker.ts";
 import ConcDownloader from "../downloader/downloader.ts";
 import DownloadTask from "../downloader/downloadtask.ts";
 import Mirror from "../mirror/mirror.ts";
@@ -606,7 +606,6 @@ export default abstract class LaunchBase extends EventEmitter {
             if (fs.existsSync(path.join(this.versionPath, 'mods'))) {
                 modCount = fs.readdirSync(path.join(this.versionPath, 'mods')).filter(i => path.extname(i) === '.jar').length
             }
-            console.log(modCount)
             const freeMemoryMB = (os.freemem() / 1024 / 1024)
             let distributeMemoryMB = distributionHeap(freeMemoryMB, modCount, Math.min(os.totalmem() / 1024 / 1024 / 4, 2048))
             //32位java无法分配2G以上的内存
@@ -693,7 +692,6 @@ export default abstract class LaunchBase extends EventEmitter {
         }
         this.endStatusInterval()
         this.removeProcessListener()
-        this.removeAllListeners()
         this.gameProcess = null
     }
 
