@@ -3,6 +3,7 @@ import fs from 'fs'
 import AdmZip from 'adm-zip'
 import toml from 'toml'
 import pLimit from 'p-limit'
+import workerpool from 'workerpool'
 
 import HashUtil from '../utils/hash.ts'
 import { DirNotFoundException, FileNotFoundException } from '../error.ts'
@@ -10,6 +11,10 @@ import INI from '../utils/ini.ts'
 import { type MinecraftVersionJson } from '../types/index.ts'
 import { existify, getDirSize, getFileNameFromPath } from '../utils/io.ts'
 import ModActions from './mod_actions.ts'
+import { fileURLToPath } from 'url'
+
+const __filename: string = fileURLToPath(import.meta.url)
+const __dirname: string = path.dirname(__filename)
 
 export interface InstanceInfo {
     icon: string | null
@@ -290,20 +295,40 @@ export default abstract class InstanceManager {
         return mods
     }
 
-    public static async readModInfoFromDir(modsDir: string): Promise<ModInfo[]> {
-
+    public static async readModInfoFromDir(modsDir: string, useWorker: boolean = true): Promise<ModInfo[]> {
         if (!fs.existsSync(modsDir)) {
             throw new DirNotFoundException('mods文件夹不存在', modsDir)
         }
-
         let mods = await this.readModDir(modsDir, true)
+        return this.readModInfos(mods, useWorker)
+    }
 
-        const limit = pLimit(16)
-        const modInfoPromises = mods.map(modFile => limit(() => this.readModInfoOf(modFile)))
-        const modInfos = await Promise.all(modInfoPromises)
+    public static async readModInfos(modFiles: string[], useWorker: boolean = true): Promise<ModInfo[]> {
+        const limit = pLimit(32);
+        let modInfoPromises: Promise<ModInfo>[];
 
-        console.log(modInfos)
-        return modInfos
+        if (useWorker) {
+            const pool = workerpool.pool(path.resolve(__dirname, 'workers/modreader.ts'), {
+                maxWorkers: 8,
+                minWorkers: 1
+            });
+            try {
+                modInfoPromises = modFiles.map(modFile =>
+                    limit(() =>pool.exec('modReaderWorker', [modFile]).then(result => result as ModInfo))
+                );
+                const modInfos: ModInfo[] = await Promise.all(modInfoPromises);
+                return modInfos;
+            } finally {
+                await pool.terminate();
+            }
+        } else {
+            modInfoPromises = modFiles.map(modFile =>
+                limit(() => this.readModInfoOf(modFile))
+            );
+
+            const modInfos: ModInfo[] = await Promise.all(modInfoPromises);
+            return modInfos;
+        }
     }
 
     public static async readModInfoOf(modFile: string) {
