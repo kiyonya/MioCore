@@ -10,6 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
     "@types/iconv": "^3.0.4",
     "@types/ini": "^4.1.1",
     "adm-zip": "^0.5.16",
@@ -23,8 +24,6 @@
     "p-limit": "^7.1.1",
     "sharp": "^0.34.5",
     "tar": "^7.5.2",
-    "toml": "^3.0.0",
-    "tsc": "^2.0.4",
     "workerpool": "^10.0.1"
   },
   "devDependencies": {
