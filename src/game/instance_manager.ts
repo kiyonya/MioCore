@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import AdmZip from 'adm-zip'
-import toml from 'toml'
+import toml from '@iarna/toml'
 import pLimit from 'p-limit'
 import workerpool from 'workerpool'
 
@@ -13,8 +13,7 @@ import { existify, getDirSize, getFileNameFromPath } from '../utils/io.ts'
 import ModActions from './mod_actions.ts'
 import { fileURLToPath } from 'url'
 
-const __filename: string = fileURLToPath(import.meta.url)
-const __dirname: string = path.dirname(__filename)
+
 
 export interface InstanceInfo {
     icon: string | null
@@ -308,13 +307,15 @@ export default abstract class InstanceManager {
         let modInfoPromises: Promise<ModInfo>[];
 
         if (useWorker) {
+            const __filename: string = fileURLToPath(import.meta.url)
+            const __dirname: string = path.dirname(__filename)
             const pool = workerpool.pool(path.resolve(__dirname, 'workers/modreader.ts'), {
                 maxWorkers: 8,
                 minWorkers: 1
             });
             try {
                 modInfoPromises = modFiles.map(modFile =>
-                    limit(() =>pool.exec('modReaderWorker', [modFile]).then(result => result as ModInfo))
+                    limit(() => pool.exec('modReaderWorker', [modFile]).then(result => result as ModInfo))
                 );
                 const modInfos: ModInfo[] = await Promise.all(modInfoPromises);
                 return modInfos;
@@ -331,21 +332,38 @@ export default abstract class InstanceManager {
         }
     }
 
-    public static async readModInfoOf(modFile: string) {
+    public static async readModInfoOf(modFile: string): Promise<ModInfo> {
         if (!fs.existsSync(modFile)) {
             throw new FileNotFoundException('mod文件不存在', modFile)
         }
         const zip = new AdmZip(modFile)
 
-        if (zip.getEntry('META-INF/mods.toml')) {
-            //forge mod
-            return this.forgeModInfoReader(zip)
+        try {
+            if (zip.getEntry('META-INF/mods.toml')) {
+                //forge mod
+                return this.forgeModInfoReader(zip)
+            }
+            else if (zip.getEntry('fabric.mod.json')) {
+                //fabric mod
+                return this.fabricModInfoReader(zip)
+            }
+            else throw new Error("未知的模组类型")
+        } catch (error) {
+            console.warn(modFile, error)
+            const displayName = path.basename(modFile).replace(path.extname(modFile), '')
+            return {
+                icon: null,
+                modId: displayName,
+                version: '',
+                displayName: displayName,
+                name: displayName,
+                description: '',
+                authors: [],
+                dependencies: [],
+                loader: '',
+                license: "unknown"
+            }
         }
-        else if (zip.getEntry('fabric.mod.json')) {
-            //fabric mod
-            return this.fabricModInfoReader(zip)
-        }
-        else return {} as ModInfo
     }
 
     public static async readSavesFromDir(
@@ -467,7 +485,7 @@ export default abstract class InstanceManager {
 
     private static async forgeModInfoReader(modJarInstance: AdmZip): Promise<ModInfo> {
         const tomlText = modJarInstance.readAsText(modJarInstance.getEntry('META-INF/mods.toml') as AdmZip.IZipEntry, 'utf-8')
-        const forgeModInfo: ForgeModTomlLike = toml.parse(tomlText)
+        const forgeModInfo: ForgeModTomlLike = toml.parse(tomlText) as ForgeModTomlLike
         const mainMod = forgeModInfo.mods[0]
         const mainID = mainMod.modId
 

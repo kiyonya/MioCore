@@ -1,7 +1,8 @@
 import wokerpool from 'workerpool'
 import fs from 'fs'
 import AdmZip from 'adm-zip'
-import toml from 'toml'
+import toml from '@iarna/toml'
+import path from 'path'
 
 interface ModInfo {
     name: string
@@ -39,7 +40,8 @@ interface ForgeModTomlLike {
 
 function forgeModReaderWorker(modJarInstance: AdmZip): null | ModInfo {
     const tomlText = modJarInstance.readAsText(modJarInstance.getEntry('META-INF/mods.toml') as AdmZip.IZipEntry, 'utf-8')
-    const forgeModInfo: ForgeModTomlLike = toml.parse(tomlText)
+    const tomlPsr = toml.parse(tomlText) as unknown
+    const forgeModInfo: ForgeModTomlLike = tomlPsr as ForgeModTomlLike
     const mainMod = forgeModInfo.mods[0]
     const mainID = mainMod.modId
 
@@ -93,16 +95,33 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             return null
         }
     }
-    const modJarInstance = new AdmZip(modJarPath)
-    if (modJarInstance.getEntry('META-INF/mods.toml')) {
-        //forge mod
-        return forgeModReaderWorker(modJarInstance)
+    try {
+        const modJarInstance = new AdmZip(modJarPath)
+        if (modJarInstance.getEntry('META-INF/mods.toml')) {
+            //forge mod
+            return forgeModReaderWorker(modJarInstance)
+        }
+        else if (modJarInstance.getEntry('fabric.mod.json')) {
+            //fabric mod
+            return fabricModReaderWorker(modJarInstance)
+        }
+        else throw new Error("未知的模组类型")
+    } catch (error) {
+        console.warn(modJarPath, error)
+        const displayName = path.basename(modJarPath).replace(path.extname(modJarPath), '')
+        return {
+            icon: null,
+            modId: displayName,
+            version: '',
+            displayName: displayName,
+            name: displayName,
+            description: '',
+            authors: [],
+            dependencies: [],
+            loader: '',
+            license: "unknown"
+        }
     }
-    else if (modJarInstance.getEntry('fabric.mod.json')) {
-        //fabric mod
-        return fabricModReaderWorker(modJarInstance)
-    }
-    return null
 }
 
 wokerpool.worker({
