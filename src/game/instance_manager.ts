@@ -45,7 +45,7 @@ type SaveInfo = {
     size: number
 }
 
-export type ModInfo = {
+export interface ModInfoWithNoHashIdentity {
     name: string
     modId: string
     version: string
@@ -56,6 +56,11 @@ export type ModInfo = {
     icon: Buffer | null
     loader: string
     license: string
+}
+
+export interface ModInfo extends ModInfoWithNoHashIdentity {
+    path: string,
+    sha1: string
 }
 
 type ForgeModTomlLike = {
@@ -294,6 +299,12 @@ export default abstract class InstanceManager {
         return mods
     }
 
+    /**
+     * @deprecated
+     * @param modsDir 
+     * @param useWorker 
+     * @returns 
+     */
     public static async readModInfoFromDir(modsDir: string, useWorker: boolean = true): Promise<ModInfo[]> {
         if (!fs.existsSync(modsDir)) {
             throw new DirNotFoundException('mods文件夹不存在', modsDir)
@@ -336,16 +347,24 @@ export default abstract class InstanceManager {
         if (!fs.existsSync(modFile)) {
             throw new FileNotFoundException('mod文件不存在', modFile)
         }
+        const sha1 = await HashUtil.sha1(modFile)
         const zip = new AdmZip(modFile)
-
         try {
             if (zip.getEntry('META-INF/mods.toml')) {
                 //forge mod
-                return this.forgeModInfoReader(zip)
+                return {
+                    ...await this.forgeModInfoReader(zip),
+                    sha1: sha1,
+                    path: modFile
+                }
             }
             else if (zip.getEntry('fabric.mod.json')) {
                 //fabric mod
-                return this.fabricModInfoReader(zip)
+                return {
+                    ...await this.fabricModInfoReader(zip),
+                    sha1: sha1,
+                    path: modFile
+                }
             }
             else throw new Error("未知的模组类型")
         } catch (error) {
@@ -361,7 +380,9 @@ export default abstract class InstanceManager {
                 authors: [],
                 dependencies: [],
                 loader: '',
-                license: "unknown"
+                license: "unknown",
+                path: modFile,
+                sha1: sha1
             }
         }
     }
@@ -483,7 +504,7 @@ export default abstract class InstanceManager {
         return backupFile
     }
 
-    private static async forgeModInfoReader(modJarInstance: AdmZip): Promise<ModInfo> {
+    private static async forgeModInfoReader(modJarInstance: AdmZip): Promise<ModInfoWithNoHashIdentity> {
         const tomlText = modJarInstance.readAsText(modJarInstance.getEntry('META-INF/mods.toml') as AdmZip.IZipEntry, 'utf-8')
         const forgeModInfo: ForgeModTomlLike = toml.parse(tomlText) as ForgeModTomlLike
         const mainMod = forgeModInfo.mods[0]
@@ -496,7 +517,7 @@ export default abstract class InstanceManager {
             iconData = modJarInstance.readFile(modJarInstance.getEntry(iconPath) as AdmZip.IZipEntry) || null
         }
 
-        const modInfo: ModInfo = {
+        const modInfo: ModInfoWithNoHashIdentity = {
             name: mainMod.displayName,
             modId: mainID,
             version: mainMod.version,
@@ -506,12 +527,12 @@ export default abstract class InstanceManager {
             displayName: mainMod.displayName,
             icon: iconData,
             loader: forgeModInfo.modLoader,
-            license: forgeModInfo.license || ''
+            license: forgeModInfo.license || '',
         }
         return modInfo
     }
 
-    private static async fabricModInfoReader(modJarInstance: AdmZip): Promise<ModInfo> {
+    private static async fabricModInfoReader(modJarInstance: AdmZip): Promise<ModInfoWithNoHashIdentity> {
         const fabricIndexJson = JSON.parse(modJarInstance.readAsText(modJarInstance.getEntry('fabric.mod.json') as AdmZip.IZipEntry, 'utf-8'))
 
         const iconEntry = fabricIndexJson.icon || null
@@ -521,7 +542,7 @@ export default abstract class InstanceManager {
             iconData = modJarInstance.readFile(modJarInstance.getEntry(iconEntry) as AdmZip.IZipEntry) || null
         }
 
-        const modInfo: ModInfo = {
+        const modInfo: ModInfoWithNoHashIdentity = {
             name: fabricIndexJson.name,
             modId: fabricIndexJson.id,
             version: fabricIndexJson.version,
@@ -531,7 +552,7 @@ export default abstract class InstanceManager {
             displayName: fabricIndexJson.name,
             icon: iconData,
             loader: 'fabric',
-            license: fabricIndexJson.license || ''
+            license: fabricIndexJson.license || '',
         }
 
         return modInfo

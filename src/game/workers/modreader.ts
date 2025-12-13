@@ -3,8 +3,9 @@ import fs from 'fs'
 import AdmZip from 'adm-zip'
 import toml from '@iarna/toml'
 import path from 'path'
+import HashUtil from '../../utils/hash'
 
-interface ModInfo {
+interface ModInfoWithNoHashIdentity {
     name: string
     modId: string
     version: string
@@ -16,6 +17,12 @@ interface ModInfo {
     loader: string
     license: string
 }
+
+interface ModInfo extends ModInfoWithNoHashIdentity {
+    path: string,
+    sha1: string
+}
+
 interface ForgeModTomlLike {
     mods: Array<{
         modId: string
@@ -38,7 +45,7 @@ interface ForgeModTomlLike {
     modLoader: string
 }
 
-function forgeModReaderWorker(modJarInstance: AdmZip): null | ModInfo {
+function forgeModReaderWorker(modJarInstance: AdmZip): ModInfoWithNoHashIdentity {
     const tomlText = modJarInstance.readAsText(modJarInstance.getEntry('META-INF/mods.toml') as AdmZip.IZipEntry, 'utf-8')
     const tomlPsr = toml.parse(tomlText) as unknown
     const forgeModInfo: ForgeModTomlLike = tomlPsr as ForgeModTomlLike
@@ -51,7 +58,7 @@ function forgeModReaderWorker(modJarInstance: AdmZip): null | ModInfo {
     if (iconPath && modJarInstance.getEntry(iconPath)) {
         iconData = modJarInstance.readFile(modJarInstance.getEntry(iconPath) as AdmZip.IZipEntry) || null
     }
-    const modInfo: ModInfo = {
+    const modInfo: ModInfoWithNoHashIdentity = {
         name: mainMod.displayName,
         modId: mainID,
         version: mainMod.version,
@@ -66,7 +73,7 @@ function forgeModReaderWorker(modJarInstance: AdmZip): null | ModInfo {
     return modInfo
 }
 
-function fabricModReaderWorker(modJarInstance: AdmZip): null | ModInfo {
+function fabricModReaderWorker(modJarInstance: AdmZip): ModInfoWithNoHashIdentity {
     const fabricIndexJson = JSON.parse(modJarInstance.readAsText(modJarInstance.getEntry('fabric.mod.json') as AdmZip.IZipEntry, 'utf-8'))
     const iconEntry = fabricIndexJson.icon || null
     let iconData: Buffer | null = null
@@ -74,7 +81,7 @@ function fabricModReaderWorker(modJarInstance: AdmZip): null | ModInfo {
     if (iconEntry && modJarInstance.getEntry(iconEntry)) {
         iconData = modJarInstance.readFile(modJarInstance.getEntry(iconEntry) as AdmZip.IZipEntry) || null
     }
-    const modInfo: ModInfo = {
+    const modInfo: ModInfoWithNoHashIdentity = {
         name: fabricIndexJson.name,
         modId: fabricIndexJson.id,
         version: fabricIndexJson.version,
@@ -95,15 +102,24 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             return null
         }
     }
+    const sha1 = HashUtil.sha1Sync(modJarPath)
     try {
         const modJarInstance = new AdmZip(modJarPath)
         if (modJarInstance.getEntry('META-INF/mods.toml')) {
             //forge mod
-            return forgeModReaderWorker(modJarInstance)
+            return {
+                ...forgeModReaderWorker(modJarInstance),
+                sha1: sha1,
+                path: modJarPath
+            }
         }
         else if (modJarInstance.getEntry('fabric.mod.json')) {
             //fabric mod
-            return fabricModReaderWorker(modJarInstance)
+            return {
+                ...fabricModReaderWorker(modJarInstance),
+                sha1: sha1,
+                path: modJarPath
+            }
         }
         else throw new Error("未知的模组类型")
     } catch (error) {
@@ -119,7 +135,9 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             authors: [],
             dependencies: [],
             loader: '',
-            license: "unknown"
+            license: "unknown",
+            sha1: sha1,
+            path: modJarPath
         }
     }
 }
