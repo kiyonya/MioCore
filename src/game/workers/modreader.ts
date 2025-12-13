@@ -3,7 +3,14 @@ import fs from 'fs'
 import AdmZip from 'adm-zip'
 import toml from '@iarna/toml'
 import path from 'path'
-import HashUtil from '../../utils/hash'
+import crypto from 'crypto'
+
+function sha1Sync(file: string) {
+    const buffer = fs.readFileSync(file)
+    const hash = crypto.createHash('sha1')
+    hash.update(buffer)
+    return hash.digest('hex')
+}
 
 interface ModInfoWithNoHashIdentity {
     name: string
@@ -102,7 +109,7 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             return null
         }
     }
-    const sha1 = HashUtil.sha1Sync(modJarPath)
+    const sha1 = sha1Sync(modJarPath)
     try {
         const modJarInstance = new AdmZip(modJarPath)
         if (modJarInstance.getEntry('META-INF/mods.toml')) {
