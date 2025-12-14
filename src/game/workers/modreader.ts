@@ -12,6 +12,42 @@ function sha1Sync(file: string) {
     return hash.digest('hex')
 }
 
+function parseManifestMF(manifestText: string): Record<string, string> {
+    const result: Record<string, string> = {};
+    if (!manifestText || manifestText.trim() === '') {
+        return result;
+    }
+    const lines = manifestText.split('\n');
+    let currentKey = '';
+    let currentValue = '';
+
+    for (const line of lines) {
+        if (line.trim() === '') {
+            continue;
+        }
+        if (line.startsWith(' ')) {
+            currentValue += '\n' + line.trimStart();
+        } else {
+            if (currentKey) {
+                result[currentKey] = currentValue;
+            }
+            const colonIndex = line.indexOf(':');
+            if (colonIndex > 0) {
+                currentKey = line.substring(0, colonIndex).trim();
+                currentValue = line.substring(colonIndex + 1).trim();
+            } else {
+                console.warn(`Invalid line in manifest: ${line}`);
+                currentKey = '';
+                currentValue = '';
+            }
+        }
+    }
+    if (currentKey) {
+        result[currentKey] = currentValue;
+    }
+    return result;
+}
+
 interface ModInfoWithNoHashIdentity {
     name: string
     modId: string
@@ -27,7 +63,9 @@ interface ModInfoWithNoHashIdentity {
 
 interface ModInfo extends ModInfoWithNoHashIdentity {
     path: string,
-    sha1: string
+    sha1: string,
+    isActive: boolean,
+    fileName: string,
 }
 
 interface ForgeModTomlLike {
@@ -65,6 +103,21 @@ function forgeModReaderWorker(modJarInstance: AdmZip): ModInfoWithNoHashIdentity
     if (iconPath && modJarInstance.getEntry(iconPath)) {
         iconData = modJarInstance.readFile(modJarInstance.getEntry(iconPath) as AdmZip.IZipEntry) || null
     }
+
+
+    //兼容 虽然我也不知道为什么很多mod要这样写
+    if (mainMod.version === '${file.jarVersion}') {
+        const mfEntry = modJarInstance.getEntry('META-INF/MANIFEST.MF')
+        if (mfEntry) {
+            const mfString: string = modJarInstance.readAsText(mfEntry, 'utf8')
+            const mfObject: Record<string, string> = parseManifestMF(mfString)
+            const implementationVersion = mfObject['Implementation-Version']
+            if (implementationVersion) {
+                mainMod.version = implementationVersion
+            }
+        }
+    }
+
     const modInfo: ModInfoWithNoHashIdentity = {
         name: mainMod.displayName,
         modId: mainID,
@@ -110,6 +163,8 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
         }
     }
     const sha1 = sha1Sync(modJarPath)
+    const isActive = path.extname(modJarPath) === '.jar'
+    const fileName = path.basename(modJarPath).replace(path.extname(modJarPath), '')
     try {
         const modJarInstance = new AdmZip(modJarPath)
         if (modJarInstance.getEntry('META-INF/mods.toml')) {
@@ -117,7 +172,9 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             return {
                 ...forgeModReaderWorker(modJarInstance),
                 sha1: sha1,
-                path: modJarPath
+                path: modJarPath,
+                isActive: isActive,
+                fileName: fileName
             }
         }
         else if (modJarInstance.getEntry('fabric.mod.json')) {
@@ -125,7 +182,9 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             return {
                 ...fabricModReaderWorker(modJarInstance),
                 sha1: sha1,
-                path: modJarPath
+                path: modJarPath,
+                isActive: isActive,
+                fileName: fileName
             }
         }
         else throw new Error("未知的模组类型")
@@ -144,7 +203,9 @@ function modReaderWorker(modJarPath: string): null | ModInfo {
             loader: '',
             license: "unknown",
             sha1: sha1,
-            path: modJarPath
+            path: modJarPath,
+            isActive: isActive,
+            fileName: fileName
         }
     }
 }
