@@ -88,6 +88,7 @@ interface ForgeModTomlLike {
     license: string
     loaderVersion: string
     modLoader: string
+    logoFile: string
 }
 
 function forgeModReaderWorker(modJarInstance: AdmZip): ModInfoWithNoHashIdentity {
@@ -97,13 +98,14 @@ function forgeModReaderWorker(modJarInstance: AdmZip): ModInfoWithNoHashIdentity
     const mainMod = forgeModInfo.mods[0]
     const mainID = mainMod.modId
 
-    const iconPath = mainMod.logoFile ? mainMod.logoFile : null
     let iconData: Buffer | null = null
 
-    if (iconPath && modJarInstance.getEntry(iconPath)) {
-        iconData = modJarInstance.readFile(modJarInstance.getEntry(iconPath) as AdmZip.IZipEntry) || null
+    if (mainMod.logoFile && modJarInstance.getEntry(mainMod.logoFile)) {
+        iconData = modJarInstance.readFile(modJarInstance.getEntry(mainMod.logoFile) as AdmZip.IZipEntry) || null
     }
-
+    else if (forgeModInfo.logoFile && modJarInstance.getEntry(forgeModInfo.logoFile)) {
+        iconData = modJarInstance.readFile(modJarInstance.getEntry(forgeModInfo.logoFile) as AdmZip.IZipEntry) || null
+    }
 
     //兼容 虽然我也不知道为什么很多mod要这样写
     if (mainMod.version === '${file.jarVersion}') {

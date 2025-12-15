@@ -62,8 +62,8 @@ export interface ModInfoWithNoHashIdentity {
 export interface ModInfo extends ModInfoWithNoHashIdentity {
     path: string,
     sha1: string,
-    isActive:boolean,
-    fileName:string
+    isActive: boolean,
+    fileName: string
 }
 
 type ForgeModTomlLike = {
@@ -86,6 +86,8 @@ type ForgeModTomlLike = {
     license: string
     loaderVersion: string
     modLoader: string
+    //
+    logoFile: string
 }
 
 
@@ -351,8 +353,8 @@ export default abstract class InstanceManager {
             throw new FileNotFoundException('mod文件不存在', modFile)
         }
         const sha1 = await HashUtil.sha1(modFile)
-        const isActive:boolean = path.extname(modFile) === '.jar'
-        const fileName = path.basename(modFile).replace(path.extname(modFile),'')
+        const isActive: boolean = path.extname(modFile) === '.jar'
+        const fileName = path.basename(modFile).replace(path.extname(modFile), '')
         const zip = new AdmZip(modFile)
         try {
             if (zip.getEntry('META-INF/mods.toml')) {
@@ -361,8 +363,8 @@ export default abstract class InstanceManager {
                     ...await this.forgeModInfoReader(zip),
                     sha1: sha1,
                     path: modFile,
-                    isActive:isActive,
-                    fileName:fileName
+                    isActive: isActive,
+                    fileName: fileName
                 }
             }
             else if (zip.getEntry('fabric.mod.json')) {
@@ -371,8 +373,8 @@ export default abstract class InstanceManager {
                     ...await this.fabricModInfoReader(zip),
                     sha1: sha1,
                     path: modFile,
-                    isActive:isActive,
-                    fileName:fileName
+                    isActive: isActive,
+                    fileName: fileName
                 }
             }
             else throw new Error("未知的模组类型")
@@ -392,8 +394,8 @@ export default abstract class InstanceManager {
                 license: "unknown",
                 path: modFile,
                 sha1: sha1,
-                isActive:isActive,
-                fileName:fileName
+                isActive: isActive,
+                fileName: fileName
             }
         }
     }
@@ -521,21 +523,23 @@ export default abstract class InstanceManager {
         const mainMod = forgeModInfo.mods[0]
         const mainID = mainMod.modId
 
-        const iconPath = mainMod.logoFile ? mainMod.logoFile : null
         let iconData: Buffer | null = null
 
-        if (iconPath && modJarInstance.getEntry(iconPath)) {
-            iconData = modJarInstance.readFile(modJarInstance.getEntry(iconPath) as AdmZip.IZipEntry) || null
+        if (mainMod.logoFile && modJarInstance.getEntry(mainMod.logoFile)) {
+            iconData = modJarInstance.readFile(modJarInstance.getEntry(mainMod.logoFile) as AdmZip.IZipEntry) || null
+        }
+        else if (forgeModInfo.logoFile && modJarInstance.getEntry(forgeModInfo.logoFile)) {
+            iconData = modJarInstance.readFile(modJarInstance.getEntry(forgeModInfo.logoFile) as AdmZip.IZipEntry) || null
         }
 
         //替换版本
-        if(mainMod.version === '${file.jarVersion}'){
+        if (mainMod.version === '${file.jarVersion}') {
             const mfEntry = modJarInstance.getEntry('META-INF/MANIFEST.MF')
-            if(mfEntry){
-                const mfString:string = modJarInstance.readAsText(mfEntry,'utf8')
-                const mfObject:Record<string,string> = parseManifestMF(mfString)
+            if (mfEntry) {
+                const mfString: string = modJarInstance.readAsText(mfEntry, 'utf8')
+                const mfObject: Record<string, string> = parseManifestMF(mfString)
                 const implementationVersion = mfObject['Implementation-Version']
-                if(implementationVersion){
+                if (implementationVersion) {
                     mainMod.version = implementationVersion
                 }
             }
