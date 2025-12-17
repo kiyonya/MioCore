@@ -116,12 +116,14 @@ export interface IMMLID {
     latestRun?: number,
 }
 
+export interface MioBackupIdentity {
+    backupTime:number,
+    backupList:[]
+}
 
 export default abstract class InstanceManager {
 
     public static readonly IMG_EXTEND_NAME = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp']
-
-    public static ModActions = ModActions
 
     public static async getInstancesInfo(
         minecraftPath: string,
@@ -184,7 +186,7 @@ export default abstract class InstanceManager {
         }
         //模组统计
         if (fs.existsSync(path.join(instanceDir, 'mods'))) {
-            const mods = await this.readModDir(path.join(instanceDir, 'mods'))
+            const mods = await this.getModsFromDir(path.join(instanceDir, 'mods'))
             instanceInfo.modsCount = mods.length
             instanceInfo.pathes.mods = path.join(instanceDir, 'mods').replaceAll('\\', '/')
         }
@@ -205,7 +207,7 @@ export default abstract class InstanceManager {
         //存档统计
         if (fs.existsSync(path.join(instanceDir, 'saves'))) {
             const savesDir = path.join(instanceDir, 'saves')
-            const saves = await this.readSavesFromDir(savesDir)
+            const saves = await this.getSaveInfosFromDir(savesDir)
             instanceInfo.saves = saves
             instanceInfo.pathes.saves = path.join(instanceDir, 'saves').replaceAll('\\', '/')
         }
@@ -287,10 +289,10 @@ export default abstract class InstanceManager {
         return instanceInfo
     }
 
-    public static async readModDir(
+    public static async getModsFromDir(
         modsDir: string,
         ignoreDisabled: boolean = false
-    ) {
+    ): Promise<string[]> {
         if (!fs.existsSync(modsDir)) {
             throw new DirNotFoundException('mods文件夹不存在', modsDir)
         }
@@ -303,22 +305,18 @@ export default abstract class InstanceManager {
             .map(i => path.join(modsDir, i))
         return mods
     }
-
     /**
      * @deprecated
-     * @param modsDir 
-     * @param useWorker 
-     * @returns 
      */
-    public static async readModInfoFromDir(modsDir: string, useWorker: boolean = true): Promise<ModInfo[]> {
+    public static async getModInfosFromDir(modsDir: string, useWorker: boolean = true): Promise<ModInfo[]> {
         if (!fs.existsSync(modsDir)) {
             throw new DirNotFoundException('mods文件夹不存在', modsDir)
         }
-        let mods = await this.readModDir(modsDir, true)
-        return this.readModInfos(mods, useWorker)
+        let mods = await this.getModsFromDir(modsDir, true)
+        return this.getModInfosFromFiles(mods, useWorker)
     }
 
-    public static async readModInfos(modFiles: string[], useWorker: boolean = true): Promise<ModInfo[]> {
+    public static async getModInfosFromFiles(modFiles: string[], useWorker: boolean = true): Promise<ModInfo[]> {
         const limit = pLimit(32);
         let modInfoPromises: Promise<ModInfo>[];
 
@@ -340,7 +338,7 @@ export default abstract class InstanceManager {
             }
         } else {
             modInfoPromises = modFiles.map(modFile =>
-                limit(() => this.readModInfoOf(modFile))
+                limit(() => this.getModInfoFromFile(modFile))
             );
 
             const modInfos: ModInfo[] = await Promise.all(modInfoPromises);
@@ -348,7 +346,7 @@ export default abstract class InstanceManager {
         }
     }
 
-    public static async readModInfoOf(modFile: string): Promise<ModInfo> {
+    public static async getModInfoFromFile(modFile: string): Promise<ModInfo> {
         if (!fs.existsSync(modFile)) {
             throw new FileNotFoundException('mod文件不存在', modFile)
         }
@@ -400,35 +398,34 @@ export default abstract class InstanceManager {
         }
     }
 
-    public static async readSavesFromDir(
+    public static async getSaveInfosFromDir(
         savesDir: string,
         countSize: boolean = false
     ): Promise<SaveInfo[]> {
         const saves: SaveInfo[] = await Promise.all(
-            fs
-                .readdirSync(savesDir)
+            fs.readdirSync(savesDir)
                 .map(i => path.join(savesDir, i))
                 .filter(i => fs.statSync(i).isDirectory())
                 .filter(i => fs.existsSync(path.join(i, 'level.dat')))
-                .map(async save => {
-                    const stat = fs.statSync(save)
-                    const icon = fs.existsSync(path.join(save, 'icon.png'))
-                        ? path.join(save, 'icon.png')
-                        : null
-                    const size = countSize ? await getDirSize(save) : 0
-                    return {
-                        name: path.basename(save),
-                        latestPlay: stat.mtime.getTime(),
-                        createTime: stat.birthtime.getTime(),
-                        icon: icon,
-                        size: size
-                    }
-                })
+                .map(save => this.getSaveInfoFromSaveDir(save))
         )
         return saves
     }
 
-    public static async readResourcePacksDir(resourcePacksDir: string): Promise<string[]> {
+    public static async getSaveInfoFromSaveDir(saveDir: string, countSize: boolean = false): Promise<SaveInfo> {
+        const stat = fs.statSync(saveDir)
+        const icon = fs.existsSync(path.join(saveDir, 'icon.png')) ? path.join(saveDir, 'icon.png') : null
+        const size = countSize ? await getDirSize(saveDir) : 0
+        return {
+            name: path.basename(saveDir),
+            latestPlay: stat.mtime.getTime(),
+            createTime: stat.birthtime.getTime(),
+            icon: icon,
+            size: size
+        }
+    }
+
+    public static async getResourcePacksFromDir(resourcePacksDir: string): Promise<string[]> {
         if (!fs.existsSync(resourcePacksDir)) {
             throw new DirNotFoundException('找不到文件夹', resourcePacksDir)
         }
@@ -437,16 +434,16 @@ export default abstract class InstanceManager {
         return resourcePacks
     }
 
-    public static async readResourcePacksInfoFromDir(resourcePacksDir: string): Promise<ResourcePackInfo[]> {
-        const resourcePacks = await this.readResourcePacksDir(resourcePacksDir)
+    public static async getResourcePackInfosFromDir(resourcePacksDir: string): Promise<ResourcePackInfo[]> {
+        const resourcePacks = await this.getResourcePacksFromDir(resourcePacksDir)
 
         const limit = pLimit(16)
-        const resourcePackInfoPromises = resourcePacks.map(rp => limit(() => this.readResourcePackInfoOf(rp)))
+        const resourcePackInfoPromises = resourcePacks.map(rp => limit(() => this.getResourcePackInfoFromFile(rp)))
         const resourcePacksInfo = await Promise.all(resourcePackInfoPromises)
         return resourcePacksInfo
     }
 
-    public static async readResourcePackInfoOf(resourcePackPath: string): Promise<ResourcePackInfo> {
+    public static async getResourcePackInfoFromFile(resourcePackPath: string): Promise<ResourcePackInfo> {
         if (!fs.existsSync(resourcePackPath)) {
             throw new FileNotFoundException('找不到文件', resourcePackPath)
         }
@@ -471,7 +468,7 @@ export default abstract class InstanceManager {
         return resourcePackInfo
     }
 
-    public static async readScreenshotsFromDir(screenshotsDir: string): Promise<ScreenshotInfo[]> {
+    public static async getScreenshotsFromDir(screenshotsDir: string): Promise<ScreenshotInfo[]> {
         if (!fs.existsSync(screenshotsDir)) {
             throw new DirNotFoundException('找不到文件夹', screenshotsDir)
         }
@@ -490,7 +487,7 @@ export default abstract class InstanceManager {
         return result
     }
 
-    public static async readShaderpacksFromDir(shaderpacksDir: string): Promise<string[]> {
+    public static async getShaderpacksFromDir(shaderpacksDir: string): Promise<string[]> {
         if (!fs.existsSync(shaderpacksDir)) {
             throw new DirNotFoundException('找不到文件夹', shaderpacksDir)
         }
@@ -498,7 +495,46 @@ export default abstract class InstanceManager {
         return shaderpacks
     }
 
-    public static async createBackup(rawPath: string, backupsPath: string) {
+    public static async addModFile(instanceDir: string, modFile: string): Promise<string> {
+        if (!fs.existsSync(modFile)) {
+            throw new FileNotFoundException("找不到文件", modFile)
+        }
+        const extName = path.extname(modFile)
+        if (extName !== '.jar' && extName !== '.disable') {
+            throw new Error("不合法的Mod类型")
+        }
+        const instanceModsDir = existify(instanceDir, 'mods')
+        const modFileName = path.basename(modFile)
+        const targetModFilePath = path.join(instanceModsDir, modFileName)
+        await fs.promises.copyFile(modFile, targetModFilePath)
+        return targetModFilePath
+    }
+
+    public static async addModFiles(instanceDir: string, modFiles: string[]): Promise<string[]> {
+        const moved: string[] = []
+        for (const modFile of modFiles) {
+            const fp = await this.addModFile(instanceDir, modFile)
+            moved.push(fp)
+        }
+        return moved
+    }
+
+    public static async createSaveBackup(instanceDir: string, saveDir: string): Promise<string> {
+        if (!fs.existsSync(saveDir)) {
+            throw new DirNotFoundException('找不到存档目录', saveDir)
+        }
+        //windows下合法目录名要求
+        const saveName = path.basename(saveDir).replaceAll(/[<>:"|?*]/g, '')
+        const backupsDir = existify(instanceDir, 'backups', 'saves')
+        const zip = new AdmZip()
+        const date = new Date()
+        await zip.addLocalFolderPromise(saveDir, {})
+        const backupZipFilePath = path.join(backupsDir, `${saveName}-${date.toISOString}.zip`)
+        await zip.writeZipPromise(backupZipFilePath, { overwrite: false })
+        return backupZipFilePath
+    }
+
+    public static async createInstanceBackup(rawPath: string, backupsPath: string) {
 
         if (fs.existsSync(backupsPath) && !fs.statSync(backupsPath).isDirectory()) {
             throw new Error("无法存储到非目录")
@@ -515,6 +551,11 @@ export default abstract class InstanceManager {
         await zip.writeZipPromise(backupFile)
 
         return backupFile
+    }
+
+    public static async createModsBackup(modFiles: string[], backupPath: string) {
+        const zip = new AdmZip()
+        
     }
 
     private static async forgeModInfoReader(modJarInstance: AdmZip): Promise<ModInfoWithNoHashIdentity> {

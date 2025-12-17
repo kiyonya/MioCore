@@ -233,7 +233,7 @@ export default class ModpackExport extends EventEmitter {
                 }
             }
             if (entry.entryName === 'mods') {
-                let modFiles: Array<string> = await InstanceManager.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
+                let modFiles: Array<string> = await InstanceManager.getModsFromDir(entry.path, options?.ignoreDisabledMods ?? true)
                 if (options?.online ?? true) {
                     const matchResult = await this.onlineMatchModrinthMods(modFiles)
                     const dismatched: string[] = []
@@ -327,7 +327,7 @@ export default class ModpackExport extends EventEmitter {
                 }
             }
             if (entry.entryName === 'mods') {
-                let modFiles: Array<string> = await InstanceManager.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
+                let modFiles: Array<string> = await InstanceManager.getModsFromDir(entry.path, options?.ignoreDisabledMods ?? true)
                 if (options?.online ?? true) {
                     const matchResult = await this.onlineMatchCurseforgeMods(modFiles)
                     const dismatched: string[] = []
@@ -461,7 +461,7 @@ export default class ModpackExport extends EventEmitter {
                 }
             }
             if (entry.entryName === 'mods') {
-                let modFiles: Array<string> = await InstanceManager.readModDir(entry.path, options?.ignoreDisabledMods ?? true)
+                let modFiles: Array<string> = await InstanceManager.getModsFromDir(entry.path, options?.ignoreDisabledMods ?? true)
                 if (options?.online ?? true) {
                     const modrinthMatchResult = await this.onlineMatchModrinthMods(modFiles)
                     const curseforgeMatchResult = await this.onlineMatchCurseforgeMods(modFiles)
