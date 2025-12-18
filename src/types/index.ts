@@ -81,7 +81,7 @@ export interface MinecraftVersionJson {
   };
   javaVersion?: {
     majorVersion: number,
-    component: "java-runtime-alpha" | "java-runtime-beta" | "java-runtime-delta" | "java-runtime-gamma" | "java-runtime-gamma-snapshot" | "jre-legacy" | "minecraft-java-exe"
+    component: "java-runtime-alpha" | "java-runtime-beta" | "java-runtime-delta" | "java-runtime-gamma" | "java-runtime-gamma-snapshot" | "jre-legacy" | "minecraft-java-exe" | 'java-runtime-epsilon'
   },
   clientVersion?: string,
   inheritsFrom?: string,
