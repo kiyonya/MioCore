@@ -31,23 +31,22 @@ Mio Core是Mio Minecraft Launcher的集成核心库，使用TypeScript和C++编�
 
 ## 依赖
 
-- [Axios](https://github.com/axios/axios)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
 
-- [Adm Zip](https://github.com/cthackers/adm-zip)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
-
-- [Node Download Helper](https://github.com/hgouveia/node-downloader-helper)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
-
-- [p-Limit](https://github.com/sindresorhus/p-limit)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
-
-- [node-tar](https://github.com/isaacs/node-tar)  ![License](https://img.shields.io/badge/License-BlueOak1.0.0-orange?style=flat-square) 
-
-- [JSdom](https://github.com/jsdom/jsdom#readme)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
-
-- [Compare Versions](https://github.com/omichelsen/compare-versions#readme)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
-
-- [iconv-lite](https://github.com/pillarjs/iconv-lite)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
-
-- [toml-node](https://github.com/BinaryMuse/toml-node#readme)  ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square) 
+| 包名 | 版本 | 项目地址 | 开源协议 |
+|------|------|----------|----------|
+| adm-zip | ^0.5.16 | [https://github.com/cthackers/adm-zip](https://github.com/cthackers/adm-zip) | MIT |
+| archiver | ^7.0.1 | [https://github.com/archiverjs/node-archiver](https://github.com/archiverjs/node-archiver) | MIT |
+| axios | ^1.12.1 | [https://github.com/axios/axios](https://github.com/axios/axios) | MIT |
+| axios-retry | ^4.5.0 | [https://github.com/softonic/axios-retry](https://github.com/softonic/axios-retry) | Apache-2.0 |
+| compare-versions | ^6.1.1 | [https://github.com/omichelsen/compare-versions](https://github.com/omichelsen/compare-versions) | MIT |
+| iconv-lite | ^0.4.24 | [https://github.com/ashtuchkin/iconv-lite](https://github.com/ashtuchkin/iconv-lite) | MIT |
+| jsdom | ^27.0.0 | [https://github.com/jsdom/jsdom](https://github.com/jsdom/jsdom) | MIT |
+| node-downloader-helper | ^2.1.9 | [https://github.com/hgouveia/node-downloader-helper](https://github.com/hgouveia/node-downloader-helper) | MIT |
+| p-limit | ^7.1.1 | [https://github.com/sindresorhus/p-limit](https://github.com/sindresorhus/p-limit) | MIT |
+| sharp | ^0.34.5 | [https://github.com/lovell/sharp](https://github.com/lovell/sharp) | Apache-2.0 |
+| tar | ^7.5.2 | [https://github.com/npm/node-tar](https://github.com/npm/node-tar) | ISC |
+| workerpool | ^10.0.1 | [https://github.com/josdejong/workerpool](https://github.com/josdejong/workerpool) | Apache-2.0 |
+| yauzl | ^3.2.0 | [https://github.com/thejoshwolfe/yauzl](https://github.com/thejoshwolfe/yauzl) | MIT |
 
 
 ## 协议
