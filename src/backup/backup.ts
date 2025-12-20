@@ -2,9 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import HashUtil from '../utils/hash.ts'
 import pLimit from 'p-limit'
-import AdmZip from 'adm-zip'
 import FileUtil from '../utils/file.ts'
 import { existify } from '../utils/io.ts'
+import MZipWriter from '../utils/mzip/mzip_writer.ts'
+import MZipReader from '../utils/mzip/mzip_reader.ts'
 
 export interface CreateBackupOptions {
     ignoreNotExist?: boolean,
@@ -24,7 +25,7 @@ export interface MioBackupFile {
 }
 
 export interface MioBackupModifyObject {
-    zip: AdmZip,
+    zip:MZipReader,
     modifyMap: Record<'override' | 'delete' | 'create', MioBackupFile[]>,
     needRecover: boolean,
     override: boolean
@@ -39,7 +40,7 @@ export default class Backup {
         const files = await FileUtil.recursiveDir(baseDir, [])
         return await this.createBackup(baseDir, files, options)
     }
-    public static async createBackup(baseDir: string, backupFiles: string[], options?: CreateBackupOptions): Promise<AdmZip> {
+    public static async createBackup(baseDir: string, backupFiles: string[], options?: CreateBackupOptions): Promise<MZipWriter> {
         const toBackupFiles: string[] = []
         const baseDirNomalized = path.normalize(baseDir)
         for (const file of backupFiles) {
@@ -76,9 +77,9 @@ export default class Backup {
                 hashMap[relativePath] = ''
             }
         }
-        const zip = new AdmZip()
+        const zip = new MZipWriter()
         for (const file of toBackupFiles) {
-            zip.addLocalFile(file, path.join(this.DEFAULT_BACKUP_ARCHIVE, path.dirname(path.relative(baseDir, file))))
+            await zip.addLocalFile(file, path.join(this.DEFAULT_BACKUP_ARCHIVE, path.relative(baseDir, file)))
         }
         const backupId: MioBackupIdentity = {
             backupTime: Date.now(),
@@ -86,18 +87,18 @@ export default class Backup {
             backupHashes: hashMap,
             overrides: this.DEFAULT_BACKUP_ARCHIVE
         }
-        zip.addFile('backup.json', Buffer.from(JSON.stringify(backupId, null, 4)))
+        await zip.addString(JSON.stringify(backupId, null, 4),'backup.json')
         return zip
     }
     public static async createRecoverComfirm(recoverDir: string, backupFile: string) {
         if (!fs.existsSync(backupFile)) {
             throw new Error("没有备份")
         }
-        const zip = new AdmZip(backupFile)
-        const backupJSONEntry = zip.getEntry('backup.json')
+        const zip = new MZipReader(backupFile)
+        const backupJSONEntry = await zip.readEntry('backup.json')
         let backupJSON: MioBackupIdentity | null = null
         if (backupJSONEntry) {
-            backupJSON = JSON.parse(zip.readAsText(backupJSONEntry))
+            backupJSON = await zip.readAsJSON(backupJSONEntry) as MioBackupIdentity
         }
         const hashMap = backupJSON?.backupHashes
 
@@ -168,10 +169,10 @@ export default class Backup {
             }
         }
         for (const file of [...modifyMap.override, ...modifyMap.create]) {
-            const entry = zip.getEntry(file.zipEntryName)
+            const entry = await zip.readEntry(file.zipEntryName)
             if (entry) {
                 existify(path.dirname(file.originalPath))
-                zip.extractEntryTo(entry, path.dirname(file.originalPath), false, true)
+                await zip.extractEntryTo(entry, path.dirname(file.originalPath),{overwrite:true})
             }
             else {
                 throw new Error("备份文件缺失")
