@@ -10,9 +10,6 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@iarna/toml": "^2.2.5",
-    "@types/iconv": "^3.0.4",
-    "@types/ini": "^4.1.1",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
     "axios": "^1.12.1",
@@ -34,6 +31,9 @@
     "@types/node": "^24.3.3",
     "@types/tar": "^6.1.13",
     "@types/targz": "^1.0.5",
-    "@types/yauzl": "^2.10.3"
+    "@types/yauzl": "^2.10.3",
+    "@iarna/toml": "^2.2.5",
+    "@types/iconv": "^3.0.4",
+    "@types/ini": "^4.1.1"
   }
 }
