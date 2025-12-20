@@ -10,11 +10,8 @@ import { DirNotFoundException, FileNotFoundException } from '../error.ts'
 import INI from '../utils/ini.ts'
 import { type MinecraftVersionJson } from '../types/index.ts'
 import { existify, getDirSize, getFileNameFromPath } from '../utils/io.ts'
-import ModActions from './mod_actions.ts'
 import { fileURLToPath } from 'url'
 import { parseManifestMF } from '../utils/jar.ts'
-
-
 
 export interface InstanceInfo {
     icon: string | null
@@ -517,45 +514,6 @@ export default abstract class InstanceManager {
             moved.push(fp)
         }
         return moved
-    }
-
-    public static async createSaveBackup(instanceDir: string, saveDir: string): Promise<string> {
-        if (!fs.existsSync(saveDir)) {
-            throw new DirNotFoundException('找不到存档目录', saveDir)
-        }
-        //windows下合法目录名要求
-        const saveName = path.basename(saveDir).replaceAll(/[<>:"|?*]/g, '')
-        const backupsDir = existify(instanceDir, 'backups', 'saves')
-        const zip = new AdmZip()
-        const date = new Date()
-        await zip.addLocalFolderPromise(saveDir, {})
-        const backupZipFilePath = path.join(backupsDir, `${saveName}-${date.toISOString}.zip`)
-        await zip.writeZipPromise(backupZipFilePath, { overwrite: false })
-        return backupZipFilePath
-    }
-
-    public static async createInstanceBackup(rawPath: string, backupsPath: string) {
-
-        if (fs.existsSync(backupsPath) && !fs.statSync(backupsPath).isDirectory()) {
-            throw new Error("无法存储到非目录")
-        }
-        if (!fs.existsSync(rawPath)) {
-            throw new DirNotFoundException("找不到目录", rawPath)
-        }
-
-        existify(backupsPath)
-
-        const zip = new AdmZip()
-        await zip.addLocalFolderPromise(rawPath, {})
-        const backupFile = path.join(backupsPath, `${Date.now()}.zip`)
-        await zip.writeZipPromise(backupFile)
-
-        return backupFile
-    }
-
-    public static async createModsBackup(modFiles: string[], backupPath: string) {
-        const zip = new AdmZip()
-        
     }
 
     private static async forgeModInfoReader(modJarInstance: AdmZip): Promise<ModInfoWithNoHashIdentity> {

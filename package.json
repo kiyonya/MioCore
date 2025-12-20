@@ -22,7 +22,8 @@
     "sharp": "^0.34.5",
     "tar": "^7.5.2",
     "workerpool": "^10.0.1",
-    "yauzl": "^3.2.0"
+    "yauzl": "^3.2.0",
+    "@iarna/toml": "^2.2.5"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
@@ -32,7 +33,6 @@
     "@types/tar": "^6.1.13",
     "@types/targz": "^1.0.5",
     "@types/yauzl": "^2.10.3",
-    "@iarna/toml": "^2.2.5",
     "@types/iconv": "^3.0.4",
     "@types/ini": "^4.1.1"
   }
