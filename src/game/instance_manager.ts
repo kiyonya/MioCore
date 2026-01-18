@@ -41,6 +41,7 @@ type SaveInfo = {
     createTime: number
     icon: string | null
     size: number
+    path:string
 }
 
 export interface ModInfoWithNoHashIdentity {
@@ -404,7 +405,7 @@ export default abstract class InstanceManager {
                 .map(i => path.join(savesDir, i))
                 .filter(i => fs.statSync(i).isDirectory())
                 .filter(i => fs.existsSync(path.join(i, 'level.dat')))
-                .map(save => this.getSaveInfoFromSaveDir(save))
+                .map(save => this.getSaveInfoFromSaveDir(save,countSize))
         )
         return saves
     }
@@ -418,7 +419,8 @@ export default abstract class InstanceManager {
             latestPlay: stat.mtime.getTime(),
             createTime: stat.birthtime.getTime(),
             icon: icon,
-            size: size
+            size: size,
+            path:saveDir
         }
     }
 
