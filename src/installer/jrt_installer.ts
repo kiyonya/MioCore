@@ -46,6 +46,7 @@ interface PlatformRuntimes {
     "java-runtime-gamma-snapshot": JavaRuntimeEntry[];
     "jre-legacy": JavaRuntimeEntry[];
     "minecraft-java-exe": MinecraftJavaExeEntry[];
+    'java-runtime-epsilon':MinecraftJavaExeEntry[]
 }
 
 interface MinecraftJavaRuntimes {
@@ -71,7 +72,7 @@ interface JavaRuntimeManifestList {
 
 type OSIndex = 'linux-i386' | 'mac-os' | "mac-os-arm64" | "windows-arm64" | "windows-x64" | "windows-x86" | 'linux'
 
-type RuntimeVersion = "java-runtime-alpha" | "java-runtime-beta" | "java-runtime-delta" | "java-runtime-gamma" | "java-runtime-gamma-snapshot" | "jre-legacy" | "minecraft-java-exe"
+type RuntimeVersion = "java-runtime-alpha" | "java-runtime-beta" | "java-runtime-delta" | "java-runtime-gamma" | "java-runtime-gamma-snapshot" | "jre-legacy" | "minecraft-java-exe" | 'java-runtime-epsilon'
 
 export default class JavaRuntimeInstaller extends ConcDownloader {
 
